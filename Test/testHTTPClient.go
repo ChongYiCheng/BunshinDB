@@ -21,10 +21,11 @@ func main(){
 	client := &http.Client{
 	}
 
-	url := "http://localhost:8080/"
+	url := "http://localhost:1337/"
 
 	testUser := User{"test",1337}
 	//jsonBuffer := []bytes
+
     jsonBuffer, _ := json.Marshal(testUser)
 	//err := json.NewEncoder(jsonBuffer).Encode(testUser)
 

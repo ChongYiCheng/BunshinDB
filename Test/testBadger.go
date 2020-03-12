@@ -28,6 +28,7 @@ func main() {
         log.Fatal(err)
     }
     defer db.Close()
+    fmt.Printf("BadgerDB is type %T",db)
     // Your code here…
     updates := make(map[string][]uint8)
     for i := 1 ; i < 1000 ; i++ {

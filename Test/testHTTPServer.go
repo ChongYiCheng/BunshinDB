@@ -23,6 +23,7 @@ func main() {
 			http.Error(w, "Please send a request body", 400)
 			return
 		}
+        fmt.Println(r.Body)
 		err := json.NewDecoder(r.Body).Decode(&u)
 		if err != nil {
 			http.Error(w, err.Error(), 400)
@@ -31,5 +32,5 @@ func main() {
 		fmt.Println(u)
         json.NewEncoder(w).Encode(serverUser)
 	})
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	log.Fatal(http.ListenAndServe(":1337", nil))
 }
