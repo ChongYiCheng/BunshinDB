@@ -6,12 +6,18 @@ import (
 	"math"
 )
 
-const NUMBER_OF_VNODES = 10;
+func toChar(i int) rune {
+	return rune('A' - 1 + i)
+}
 
 
 func main() {
-	r := newRing(15)
-	n := newNode(1)
+	//Set constants here
+	const NUMBER_OF_VNODES = 3;
+	const KEYSPACE = 20
+
+	r := newRing(KEYSPACE)
+	n := newNode(1, NUMBER_OF_VNODES)
 
 	n.registerWithRing(r)
 
@@ -20,50 +26,80 @@ func main() {
 type ring struct {
 	maxID int // 0 to maxID inclusive
 	nodeMap map[int]node
-
+	idArray []string
+	nodeArray []node
 }
 
 type node struct {
 //	keep it basic for now. need to integrate with Cheow Fu's later
-	id int
-	// Number of vNodes to replicate
+	id string
+	cName string //Canonical Name, like "A"
+ 	// Number of tokens to replicate
 	numTokens int
 	nodeAddresses []int
+	nodeDataArray []nodeData
 }
 
-func newNode(id int) node{
-	return node{id, NUMBER_OF_VNODES, []int {}}
+// A simple struct to define the schema when sending the payload containing basic data
+type nodeData struct {
+	id string
+	hash int
+	physicalNode node
+}
+
+
+
+// Constructor functions
+func newNodeData(id string, hash int, physicalNode node) nodeData{
+	return nodeData{id, hash,physicalNode}
+}
+
+func newNode(numID int, numTokens int) node{
+	return node{string(toChar(numID)) + "0", string(toChar(numID)),
+		numTokens, []int {}, []nodeData{}}
 }
 
 func newRing(maxID int) ring {
-	return ring{maxID, make(map[int]node)}
+	return ring{maxID, make(map[int]node), []string {}, []node {}}
 }
 
 func (n node) registerWithRing(r ring) {
 	nodeAddresses := []int {}
+	//TODO: Can we do deduplication on the node side?
 	for i := 0; i < n.numTokens +1; i ++ {
-		id := hashMD5("Node" + string(n.id), i, 0, r.maxID)
-		nodeAddresses = append(nodeAddresses, id)
+		id := fmt.Sprintf("%s%d", n.cName, i)
+		hash := hashMD5(id, i, 0, r.maxID)
+		nodeAddresses = append(nodeAddresses, hash)
+		n.nodeDataArray = append(n.nodeDataArray, newNodeData(id, hash, n))
+		//fmt.Println(fmt.Sprintf("%s%d", n.cName, i), n)
 	}
-	fmt.Println("Node:", nodeAddresses)
-	n.nodeAddresses = r.registerNodes(nodeAddresses, n)
+	fmt.Printf("Node %s registering %s \n", n.id, n.toString(n.nodeDataArray))
+	n.nodeDataArray = r.registerNodes(n.nodeDataArray)
+	fmt.Printf("Ring registered for %s: %s  \n", n.id, n.toString(n.nodeDataArray))
 }
 
 
-func (r ring) registerNodes(idArray []int, n node) []int{
-	ret := []int{}
-	for _, id := range idArray {
+func (r ring) registerNodes(nodeDataArray []nodeData) []nodeData{
+	for _, nd := range nodeDataArray {
 		for {
-			if _, ok := r.nodeMap[id]; ok {
-				id += 1
+			if _, ok := r.nodeMap[nd.hash]; ok {
+				nd.hash +=1
 			} else {
-				r.nodeMap[id] = n
-				ret = append(ret, id)
+				r.nodeMap[nd.hash] = nd.physicalNode
 				break
 			}
 		}
 	}
-	fmt.Println("Ring:", ret)
+	return nodeDataArray
+}
+
+//Easy toString method
+
+func (n node) toString(nodeDataArray []nodeData) []string{
+	ret := []string {}
+	for _, nd := range nodeDataArray {
+		ret = append(ret, fmt.Sprintf("(Node %s, hash: %d) ", nd.id, nd.hash))
+	}
 	return ret
 }
 
