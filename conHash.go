@@ -2,8 +2,8 @@ package main
 
 import (
 	"crypto/md5"
+	"errors"
 	"fmt"
-	"math"
 )
 
 func toChar(i int) rune {
@@ -13,20 +13,21 @@ func toChar(i int) rune {
 
 func main() {
 	//Set constants here
-	const NUMBER_OF_VNODES = 5;
+	const NUMBER_OF_VNODES = 15;
 	const MAX_KEY = 20
 
 	r := newRing(MAX_KEY)
 	n := newNode(1, NUMBER_OF_VNODES)
-
 	n.registerWithRing(r)
 
+	node, err := r.getNode("A2")
+	if err == nil {
+		fmt.Printf("Node found: %s \n", node.id)
+	}
 }
 
 type ring struct {
 	maxID int // 0 to maxID inclusive
-	nodeMap map[int]node
-	idArray []string
 	nodeArray []nodeData
 }
 
@@ -60,14 +61,11 @@ func newNode(numID int, numTokens int) node{
 }
 
 func newRing(maxID int) ring {
-	nodeArray := []nodeData {}
-	emptyND := nodeData{}
-	for i:= 0; i <= maxID; i ++ {
-		nodeArray = append(nodeArray, emptyND)
-	}
-	fmt.Println(len(nodeArray))
-	fmt.Println(nodeArray[1].id)
-	return ring{maxID, make(map[int]node), []string {},  nodeArray}
+	nodeDataArray := []nodeData {}
+	nodeDataArray = make([]nodeData, maxID, maxID)
+	fmt.Println(len(nodeDataArray))
+	fmt.Println(nodeDataArray[1].id)
+	return ring{maxID, nodeDataArray}
 }
 
 func (n node) registerWithRing(r ring) {
@@ -75,7 +73,7 @@ func (n node) registerWithRing(r ring) {
 	//TODO: Can we do deduplication on the node side?
 	for i := 0; i < n.numTokens +1; i ++ {
 		id := fmt.Sprintf("%s%d", n.cName, i)
-		hash := hashMD5(id, i, 0, r.maxID)
+		hash := hashMD5(id, 0, r.maxID)
 		nodeAddresses = append(nodeAddresses, hash)
 		n.nodeDataArray = append(n.nodeDataArray, newNodeData(id, hash, n))
 		//fmt.Println(fmt.Sprintf("%s%d", n.cName, i), n)
@@ -105,7 +103,6 @@ func (r ring) registerNodes(nodeDataArray []nodeData) []nodeData{
 }
 
 //Easy toString method
-
 func toString(nodeDataArray []nodeData) []string{
 	ret := []string {}
 	for _, nd := range nodeDataArray {
@@ -114,18 +111,34 @@ func toString(nodeDataArray []nodeData) []string{
 	return ret
 }
 
+//string must end with an integer
+func (r ring) getNode(id string) (node, error) {
+	var NodeNotFound = errors.New("Node not found")
+	hash := hashMD5(id, 0, r.maxID)
+
+	//Impose an upper bound for probe times
+	for i:= 0; i < len(r.nodeArray); i ++{
+		fmt.Println(r.nodeArray[hash].id)
+		if r.nodeArray[hash].id == id {
+			return r.nodeArray[hash].physicalNode, nil
+		}
+		hash = (hash + 1) % len(r.nodeArray)
+	}
+
+	return node{}, NodeNotFound
+}
 
 //write a method to generate 4 keys given a single node
 //TODO: need to improve this further
-func hashMD5(text string, salt int, min int, max int) int {
-
-	hash:=md5.New()
-	byteArray := hash.Sum([]byte(text))
+func hashMD5(text string, min int, max int) int {
+	byteArray := md5.Sum([] byte(text))
 	var output int
-	for i, num := range byteArray{
-		output += int(math.Pow(float64(num), float64(i % 5 + 2))) + salt * i
+	for _, num := range byteArray{
+		output += int(num)
 	}
 
 	return output % (max - min + 1) + min
 }
+
+
 
