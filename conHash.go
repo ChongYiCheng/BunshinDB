@@ -31,6 +31,7 @@ type ring struct {
 	nodeArray []nodeData
 }
 
+//cName is the letter. It is a rune, but converted to string for convenience
 type node struct {
 //	keep it basic for now. need to integrate with Cheow Fu's later
 	id string
@@ -47,8 +48,6 @@ type nodeData struct {
 	hash int
 	physicalNode node
 }
-
-
 
 // Constructor functions
 func newNodeData(id string, hash int, physicalNode node) nodeData{
@@ -67,7 +66,7 @@ func newRing(maxID int) ring {
 	fmt.Println(nodeDataArray[1].id)
 	return ring{maxID, nodeDataArray}
 }
-
+//node will create numTokens worth of virtual nodes
 func (n node) registerWithRing(r ring) {
 	nodeAddresses := []int {}
 	//TODO: Can we do deduplication on the node side?
@@ -76,7 +75,6 @@ func (n node) registerWithRing(r ring) {
 		hash := hashMD5(id, 0, r.maxID)
 		nodeAddresses = append(nodeAddresses, hash)
 		n.nodeDataArray = append(n.nodeDataArray, newNodeData(id, hash, n))
-		//fmt.Println(fmt.Sprintf("%s%d", n.cName, i), n)
 	}
 	fmt.Printf("Node %s registering %s \n", n.id, toString(n.nodeDataArray))
 	n.nodeDataArray = r.registerNodes(n.nodeDataArray)
@@ -128,8 +126,6 @@ func (r ring) getNode(id string) (node, error) {
 	return node{}, NodeNotFound
 }
 
-//write a method to generate 4 keys given a single node
-//TODO: need to improve this further
 func hashMD5(text string, min int, max int) int {
 	byteArray := md5.Sum([] byte(text))
 	var output int
