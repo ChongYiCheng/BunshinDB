@@ -90,7 +90,7 @@ func newRing(maxID int) *Ring{
 
 //node will create numTokens worth of virtual nodes
 func (n *Node) registerWithRing(r *Ring) {
-    localRing = node.ring
+    localRing := n.ring
 	nodeAddresses := []int {}
     tempNodeDataArray := make([]nodeData, len(localRing.nodeArray),len(localRing.nodeArray))
     copy(tempNodeDataArray,localRing.nodeArray)
