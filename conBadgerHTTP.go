@@ -29,14 +29,17 @@ type Node struct{
     port string
     //allNodes map[int]string
     //localClock []int
-    ring *Ring
+
 	nodeRingPositions []int
-	//nodeDataArray []nodeData
+    ring *Ring
+
+    //{name: str, nodeRingPosition: int}
+	nodeDataArray []nodeData
 }
 
 type Ring struct{
     maxID int // 0 to maxID inclusive
-    nodeArray []nodeData
+    ringNodeDataArray []nodeData
 }
 
 type nodeData struct{
@@ -90,20 +93,18 @@ func newRing(maxID int) *Ring{
 
 //node will create numTokens worth of virtual nodes
 func (n *Node) registerWithRing(r *Ring) {
-    localRing := n.ring
-	nodeAddresses := []int {}
-    tempNodeDataArray := make([]nodeData, len(localRing.nodeArray),len(localRing.nodeArray))
-    copy(tempNodeDataArray,localRing.nodeArray)
+    nodeDataArray := []nodeData {}
+    //copy(tempNodeDataArray,localRing.ringNodeDataArray)
 	//TODO: Can we do deduplication on the node side?
 	for i := 0; i < n.numTokens +1; i ++ {
 		id := fmt.Sprintf("%s%d", n.cName, i)
 		hash := hashMD5(id, 0, r.maxID)
-		nodeAddresses = append(nodeAddresses, hash)
-		tempNodeDataArray = append(tempNodeDataArray, newNodeData(id, n.cName, hash, n.ip, n.port))
+		nodeDataArray = append(nodeDataArray, newNodeData(id, n.cName, hash, n.ip, n.port))
 	}
-	fmt.Printf("Node %s registering %s \n", n.id, toString(tempNodeDataArray))
-	r.nodeArray = r.registerNodes(tempNodeDataArray)
-	fmt.Printf("Ring registered for %s: %s  \n", n.id, toString(tempNodeDataArray))
+
+	fmt.Printf("Node %s registering %s \n", n.id, toString(nodeDataArray))
+	n.nodeDataArray = r.registerNodes(nodeDataArray)
+	fmt.Printf("Ring registered for %s: %s  \n", n.id, toString(n.nodeDataArray))
 }
 
 func (r *Ring) registerNodes(nodeDataArray []nodeData) []nodeData{
@@ -111,10 +112,10 @@ func (r *Ring) registerNodes(nodeDataArray []nodeData) []nodeData{
 	for _, nd := range nodeDataArray {
 		for {
 			//if occupied, we do linear probing
-			if r.nodeArray[nd.hash].id != "" {
+			if r.ringNodeDataArray[nd.hash].id != "" {
 				nd.hash = (nd.hash + 1) % len(nodeDataArray)
 			} else {
-				r.nodeArray[nd.hash] = nd
+				r.ringNodeDataArray[nd.hash] = nd
 				ret = append(ret, nd)
 				break
 			}
@@ -124,6 +125,9 @@ func (r *Ring) registerNodes(nodeDataArray []nodeData) []nodeData{
 	return ret
 }
 
+//func toString() string {
+//
+//}
 //Easy toString method
 func toString(nodeDataArray []nodeData) []string{
 	ret := []string {}
@@ -139,14 +143,14 @@ func (r *Ring) getNode(id string) (string, error) {
 	hash := hashMD5(id, 0, r.maxID)
 
 	//Impose an upper bound for probe times
-	for i:= 0; i < len(r.nodeArray); i ++{
-		fmt.Println(r.nodeArray[hash].id)
-		if r.nodeArray[hash].id == id {
-            ip_port := fmt.Sprintf("%s:%s",r.nodeArray[hash].ip,r.nodeArray[hash].port)
+	for i:= 0; i < len(r.ringNodeDataArray); i ++{
+		fmt.Println(r.ringNodeDataArray[hash].id)
+		if r.ringNodeDataArray[hash].id == id {
+            ip_port := fmt.Sprintf("%s:%s",r.ringNodeDataArray[hash].ip,r.ringNodeDataArray[hash].port)
 			//return r.nodeArray[hash].physicalNode, nil
             return ip_port, nil
 		}
-		hash = (hash + 1) % len(r.nodeArray)
+		hash = (hash + 1) % len(r.ringNodeDataArray)
 	}
 
 	return id, NodeNotFound
@@ -293,6 +297,7 @@ func (node *Node) UpdateDB(update map[string][]byte){
     handle(err)
 }
 
+//print all key, value pairs
 func (node *Node) viewDB(){
     db := node.nodeDB
 	err := db.View(func(txn *badger.Txn) error {
@@ -597,7 +602,7 @@ func main(){
         os.Exit(0)
     }
 	//Set constants here
-	const NUMBER_OF_VNODES = 4;
+	const NUMBER_OF_VNODES = 12;
 	const MAX_KEY = 20
 
     currentIP, err := externalIP()
@@ -606,12 +611,13 @@ func main(){
     port := os.Args[1]
     DBPath := os.Args[2]
 	
-	r := newRing(MAX_KEY)
-	node := newNode(1, NUMBER_OF_VNODES,DBPath,currentIP,port,r)
+	ring := newRing(MAX_KEY)
+	node := newNode(1, NUMBER_OF_VNODES,DBPath,currentIP,port,ring)
+	//should with assign the ring to node.ring only when we register with ring?
 	node.registerWithRing(node.ring)
 
     nodeQuery := "A2"
-	nodeIP, err := r.getNode("A2")
+	nodeIP, err := ring.getNode("A2")
 	if err == nil {
         fmt.Printf("Node %s found at : %s \n",nodeQuery,nodeIP)
     } else{
