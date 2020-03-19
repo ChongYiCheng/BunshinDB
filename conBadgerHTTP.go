@@ -14,7 +14,6 @@ import (
     "net"
     "errors"
     glog "github.com/golang/glog"
-    "crypto/md5"
 
 )
 
@@ -467,8 +466,8 @@ func main(){
         os.Exit(0)
     }
 	//Set constants here
-	const NUMBER_OF_VNODES = 12;
-	const MAX_KEY = 20
+	const NUMBER_OF_VNODES = 3;
+	const MAX_KEY = 100;
 
     currentIP, err := externalIP()
 	fmt.Printf("Setting Node's IP to be %s\n",currentIP)
@@ -482,23 +481,22 @@ func main(){
 	node.registerWithRing(node.ring)
 
     nodeQuery := "A2"
-	nodeIP, err := ring.getNode(nodeQuery)
+	nodeIP, err := ring.getNodeWithId(nodeQuery)
 	if err == nil {
         fmt.Printf("Node %s found at : %s \n",nodeQuery,nodeIP)
     } else{
         fmt.Printf("Node %s not found\n",nodeQuery)
     }
-    //node.name = "A0"
-    //currentIP, err := externalIP()
-    //node.ip = currentIP
-	//fmt.Printf("Setting Node's IP to be %s\n",node.ip)
-    //handle(err)
-    //node.port = os.Args[1]
-    //node.DBPath = os.Args[2]
-    //node.quitChannel = make(chan struct{})
-    //node.nodeChannel = make(chan interface{})
-    //node.allNodes = make(map[int]string)
-    //node.localClock = []int{0}
+
+    searchKey := "testing"
+    addr, err := ring.getNodeWithKey(searchKey)
+    if err == nil {
+		fmt.Printf("Key [%s] found at node with ip [%s] \n", searchKey, addr)
+	} else {
+		fmt.Printf("Node for key [%s] not found \n", searchKey )
+	}
+
+
     go node.Start()
 
 	//Start of CLI interactivity
