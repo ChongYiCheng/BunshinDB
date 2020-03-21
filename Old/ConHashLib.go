@@ -146,3 +146,27 @@ func hashMD5(text string, min int, max int) int {
 
 	return output % (max - min + 1) + min
 }
+
+func (ring *Ring) genPrefList(){
+    nodeArray := ring.nodeArray
+    for i := 0 ; i < len(ring.nodeArray) ; i++ {
+        if nodeArray[i].id != ""{
+            // if node not empty, assign preference list
+            ring.nodePrefList[i] := go func(i int) []nodeData {
+                ret := make([]nodeData,ring.replicationFactor)
+                j += i + 1
+                while j != i {
+                    if nodeArray[j].id != "" and nodeArray[j].cName != nodeArray[i].cName{
+                        ret := append(ret,nodeArray[j])
+                        if len(ret) == ring.replicationFactor{
+                            return ret
+                        }
+                    }
+                    j = (j + 1) % ring.MaxID
+                }
+                return ret
+            } // finish assigning preference list to 1 node
+        }
+    }
+}
+
