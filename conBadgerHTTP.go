@@ -28,57 +28,6 @@ type Message struct{
     Timestamp []int //Vector Clock
 }
 
-
-//// Inputs : key of data, machine's local ring
-//// Outputs : int (Node hash of the node that's supposed to be responsible for the data) 
-////           url of Node that's responsible
-//func (ring *Ring) allocateKey(key String) string{
-//    nodeArray := ring.nodeArray
-//    keyHash = hashMD5(key,0,len(nodeArray)-1)
-//    var firstNodeAddress int //Keep a pointer to the first node address encountered just in case
-//    firstNodeAddress = -1 // -1 is an impossible number in context of node array, 
-//                          //using it as a benchmark to see if it has not been set
-//    for i := 0; i < len(nodeArray) ; i++ {
-//        if nodeArray[i].id != "" {
-//            if firstNodeAddress == -1{
-//                firstNodeAddress = i
-//            }
-//            if keyHash <= i{
-//                nodeUrl := fmt.Sprintf("%s:%s",nodeArray[i].ip,nodeArray[i].port)
-//                return i,nodeUrl
-//            }
-//        }
-//        if i == len(nodeArray)-1 {
-//            //Reached end of node array and a coordinator node for key still hasn't been allocated
-//            nodeUrl := fmt.Sprintf("%s:%s",nodeArray[firstNodeAddress].ip,nodeArray[firstNodeAddress].port)
-//            return firstNodeAddress,nodeUrl
-//        }
-//    }
-//}
-//
-//func (ring *Ring) genPrefList(){
-//    nodeArray := ring.nodeArray
-//    for i := 0 ; i < len(ring.nodeArray) ; i++ {
-//        if nodeArray[i].id != ""{
-//            // if node not empty, assign preference list
-//            ring.nodePrefList[i] = func(i int) []nodeData {
-//                ret := make([]nodeData,ring.replicationFactor)
-//                j := i + 1
-//                for (j != i) {
-//                    if nodeArray[j].id != "" && nodeArray[j].cName != nodeArray[i].cName{
-//                        ret := append(ret,nodeArray[j])
-//                        if len(ret) == ring.replicationFactor{
-//                            return ret
-//                            }
-//                        }
-//                j = (j + 1) % ring.MaxID
-//                }
-//            return ret
-//            }(i) // finish assigning preference list to 1 node
-//        }
-//    }
-//}
-
 type Node struct{
     ConHash.Node
     ResponseChannel chan interface{}
@@ -306,6 +255,10 @@ func (node *Node) HttpClientReq(msg *Message,targetUrl string,endpoint string){
     req.Header.Set("Content-Type", "application/json")
 
     res, err := client.Do(req)
+
+    // always close the response-body, even if content is not required
+    defer res.Body.Close()
+
     if err != nil {
          fmt.Println("Unable to reach the server.")
     } else {
