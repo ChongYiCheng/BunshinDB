@@ -53,7 +53,7 @@ func (node *Node) Start(){
     defer db.Close()
     node.NodeDB = db
 
-    node.httpServerStart()
+    node.HttpServerStart()
 }
 
 func contains(s []int, e int) bool {
@@ -65,17 +65,17 @@ func contains(s []int, e int) bool {
     return false
 }
 
-func (node *Node) httpServerStart(){
+func (node *Node) HttpServerStart(){
 
-	http.HandleFunc("/get", node.getHandler)
-	http.HandleFunc("/put", node.putHandler)
-	http.HandleFunc("/new-ring", node.newRingHandler)
-	http.HandleFunc("/get-node", node.getNodeHandler)
-	http.HandleFunc("/hb", node.heartbeatHandler)
+	http.HandleFunc("/get", node.GetHandler)
+	http.HandleFunc("/put", node.PutHandler)
+	http.HandleFunc("/new-ring", node.NewRingHandler)
+	http.HandleFunc("/get-node", node.GetNodeHandler)
+	http.HandleFunc("/hb", node.HeartbeatHandler)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s",node.Port), nil))
 }
 
-func (node *Node) getHandler(w http.ResponseWriter, r *http.Request) {
+func (node *Node) GetHandler(w http.ResponseWriter, r *http.Request) {
     var msg *Message
 
     w.Header().Set("Content-Type", "application/json")
@@ -99,7 +99,7 @@ func (node *Node) getHandler(w http.ResponseWriter, r *http.Request) {
 
     if contains(node.NodeRingPositions,dstNodeHash){ //If this node is responsible 
         var responseStatus string
-        queryResponse, err := node.queryDB(query)
+        queryResponse, err := node.QueryDB(query)
         if err != nil{
             responseStatus = "404"
         } else {
@@ -121,7 +121,7 @@ func (node *Node) getHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 
-func (node *Node) putHandler(w http.ResponseWriter, r *http.Request) {
+func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
     var msg *Message
 
     w.Header().Set("Content-Type", "application/json")
@@ -169,12 +169,12 @@ func (node *Node) putHandler(w http.ResponseWriter, r *http.Request) {
     }
 }
 
-func (node *Node) newRingHandler(w http.ResponseWriter, r *http.Request) {
+func (node *Node) NewRingHandler(w http.ResponseWriter, r *http.Request) {
     //To-Do update ring
     //Need a onUpdateRing function in conHash.go
 }
 
-func (node *Node) getNodeHandler(w http.ResponseWriter, r *http.Request) {
+func (node *Node) GetNodeHandler(w http.ResponseWriter, r *http.Request) {
     var msg *Message
 
     w.Header().Set("Content-Type", "application/json")
@@ -206,7 +206,7 @@ func (node *Node) getNodeHandler(w http.ResponseWriter, r *http.Request) {
     json.NewEncoder(w).Encode(responseMessage)
 }
 
-func (node *Node) heartbeatHandler(w http.ResponseWriter, r *http.Request) {
+func (node *Node) HeartbeatHandler(w http.ResponseWriter, r *http.Request) {
     w.WriteHeader(http.StatusOK) //Set response code to 200
     fmt.Fprintf(w,"") //Just send a blank reply at least the server knows you're reachable 
 }
@@ -217,7 +217,7 @@ func (node *Node) handleMessage(m *Message) *Message{
         //If Message type is GET
         var responseStatus string
         query := m.Query
-        queryResponse, err := node.queryDB(query)
+        queryResponse, err := node.QueryDB(query)
         if err != nil{
             responseStatus = "404"
         } else {
@@ -286,7 +286,7 @@ func (node *Node) UpdateDB(update map[string][]byte) error{
 }
 
 //print all key, value pairs
-func (node *Node) viewDB(){
+func (node *Node) ViewDB(){
     db := node.NodeDB
 	err := db.View(func(txn *badger.Txn) error {
 	  opts := badger.DefaultIteratorOptions
@@ -309,7 +309,7 @@ func (node *Node) viewDB(){
     handle(err)
 }
 
-func (node *Node) queryDB(queryKey string) (map[string][]byte,error){
+func (node *Node) QueryDB(queryKey string) (map[string][]byte,error){
 	var outputVal []byte
     var valCopy []byte
     db := node.NodeDB
@@ -347,7 +347,7 @@ func (node *Node) queryDB(queryKey string) (map[string][]byte,error){
 	return output, err
 }
 
-func (node *Node) deleteKey(Key string) error{
+func (node *Node) DeleteKey(Key string) error{
     db := node.NodeDB
 	err := db.Update(func(txn *badger.Txn) error {
 	err := txn.Delete([]byte(Key))
@@ -509,7 +509,7 @@ for the key-value pair and it in the response
             }
             key := arrCommandStr[1]
             fmt.Printf("Querying db...\n")
-            results,err := node.queryDB(key)
+            results,err := node.QueryDB(key)
             if err!=nil{
                 fmt.Printf("Key <%s> not found in datbase\n",key)
             } else{
@@ -529,13 +529,13 @@ for the key-value pair and it in the response
             if len(arrCommandStr)!=1{
                 return fmt.Errorf("Extra arguments, usage of view - view")
             }
-            node.viewDB()
+            node.ViewDB()
         case "delete":
             if len(arrCommandStr)!=2{
                 return fmt.Errorf("Usage of delete - delete <Key>")
             }
             key := arrCommandStr[1]
-            err := node.deleteKey(key)
+            err := node.DeleteKey(key)
             if err!=nil{
                 fmt.Printf("Key <%s> not in database, can't delete",key)
             } else {
