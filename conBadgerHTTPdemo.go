@@ -255,9 +255,7 @@ func (node *Node) HttpClientReq(msg *Message,targetUrl string,endpoint string){
 	client := &http.Client{
 	}
     fmt.Println("HTTP Client Req function called")
-
     url := fmt.Sprintf("http://%s/%s",targetUrl,endpoint)
-    fmt.Println(msg)
 
     jsonBuffer, err := json.Marshal(msg)
     handle(err)
@@ -668,10 +666,56 @@ func main(){
     nodeTimeoutChannel := make(chan interface{})
     node := Node{conNode,nodeResponseChannel,nodeTimeoutChannel}
 	//should with assign the ring to node.ring only when we register with ring?
-	node.RegisterWithRing(node.Ring)
+	//node.RegisterWithRing(node.Ring)
+    //For demo purposes, gonna hard code a ring
+    const MAXID = 20
+    const REPLICATIONFACTOR = 1
+    NodeDataArray := make([]ConHash.NodeData,MAXID,MAXID)
+
+    NodeDataArray[1] = ConHash.NodeData{"A0","A",1,"127.0.0.1","8080"}
+    NodeDataArray[3]= ConHash.NodeData{"A1","A",3,"127.0.0.1","8080"}
+    NodeDataArray[5] = ConHash.NodeData{"A2","A",5,"127.0.0.1","8080"}
+    NodeDataArray[7] = ConHash.NodeData{"A3","A",7,"127.0.0.1","8080"}
+    NodeDataArray[9] = ConHash.NodeData{"A4","A",9,"127.0.0.1","8080"}
+    NodeDataArray[11] = ConHash.NodeData{"B0","B",11,"127.0.0.1","8081"}
+    NodeDataArray[13] = ConHash.NodeData{"B1","B",13,"127.0.0.1","8081"}
+    NodeDataArray[15] = ConHash.NodeData{"B2","B",15,"127.0.0.1","8081"}
+    NodeDataArray[17] = ConHash.NodeData{"B3","B",17,"127.0.0.1","8081"}
+    NodeDataArray[19] = ConHash.NodeData{"B4","B",19,"127.0.0.1","8081"}
+    
+
+    fmt.Printf("HardCoded NodeDataArray is %v\n",NodeDataArray)
+
+
+    NodePrefList := map[int][]ConHash.NodeData{
+        1:[]ConHash.NodeData{ConHash.NodeData{"B0","B",11,"127.0.0.1","8081"}},
+        3:[]ConHash.NodeData{ConHash.NodeData{"B0","B",11,"127.0.0.1","8081"}},
+        5:[]ConHash.NodeData{ConHash.NodeData{"B0","B",11,"127.0.0.1","8081"}},
+        7:[]ConHash.NodeData{ConHash.NodeData{"B0","B",11,"127.0.0.1","8081"}},
+        9:[]ConHash.NodeData{ConHash.NodeData{"B0","B",11,"127.0.0.1","8081"}},
+        11:[]ConHash.NodeData{ConHash.NodeData{"A0","A",1,"127.0.0.1","8080"}},
+        13:[]ConHash.NodeData{ConHash.NodeData{"A0","A",1,"127.0.0.1","8080"}},
+        15:[]ConHash.NodeData{ConHash.NodeData{"A0","A",1,"127.0.0.1","8080"}},
+        17:[]ConHash.NodeData{ConHash.NodeData{"A0","A",1,"127.0.0.1","8080"}},
+        19:[]ConHash.NodeData{ConHash.NodeData{"A0","A",1,"127.0.0.1","8080"}},
+    }
+    demoRing := &ConHash.Ring{
+        MaxID: MAXID,
+        RingNodeDataArray:NodeDataArray,
+        NodePrefList:NodePrefList,
+        ReplicationFactor: REPLICATIONFACTOR,
+    }
+
+    node.Ring = demoRing
+    for _,nodeData := range node.Ring.RingNodeDataArray{
+        if nodeData.CName == node.CName{
+            node.NodeRingPositions = append(node.NodeRingPositions,nodeData.Hash)
+        }
+    }
+    fmt.Println(node.NodeRingPositions)
 
     nodeQuery := "A2"
-	nodeIP, err := ring.GetNode(nodeQuery)
+	nodeIP, err := demoRing.GetNode(nodeQuery)
 	if err == nil {
         fmt.Printf("Node %s found at : %s \n",nodeQuery,nodeIP)
     } else{
@@ -679,9 +723,9 @@ func main(){
     }
 
     searchKey := "testing"
-    _, addr, err := ring.AllocateKey(searchKey)
+    nodeHash, addr, err := demoRing.AllocateKey(searchKey)
     if err == nil {
-		fmt.Printf("Key [%s] found at node with ip [%s] \n", searchKey, addr)
+		fmt.Printf("Key [%s] found at node %s with ip [%s] \n",searchKey, demoRing.RingNodeDataArray[nodeHash].ID,addr)
 	} else {
 		fmt.Printf("Node for key [%s] not found \n", searchKey )
 	}

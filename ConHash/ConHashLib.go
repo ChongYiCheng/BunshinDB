@@ -128,7 +128,7 @@ func (r *Ring) GetNode(id string) (string, error) {
 
 	//Impose an upper bound for probe times
 	for i:= 0; i < len(r.RingNodeDataArray); i ++{
-		fmt.Println(r.RingNodeDataArray[hash].ID)
+		//fmt.Println(r.RingNodeDataArray[hash].ID)
 		if r.RingNodeDataArray[hash].ID == id {
 			ip_port := fmt.Sprintf("%s:%s",r.RingNodeDataArray[hash].IP,r.RingNodeDataArray[hash].Port)
 			//return r.nodeArray[hash].physicalNode, nil
