@@ -1,20 +1,21 @@
 package main
 
 import (
-    "encoding/json"
-    "log"
-    "fmt"
-    badger "github.com/dgraph-io/badger"
-    "net/http"
-    "os"
-    "os/exec"
-    "strings"
-    "bufio"
-    "bytes"
-    "net"
-    "errors"
-    glog "github.com/golang/glog"
-    "./ConHash"
+	"50.041-DistSysProject-BunshinDB/Stetho"
+	"50.041-DistSysProject-BunshinDB/pkg/ConHash"
+	"bufio"
+	"bytes"
+	"encoding/json"
+	"errors"
+	"fmt"
+	badger "github.com/dgraph-io/badger"
+	glog "github.com/golang/glog"
+	"log"
+	"net"
+	"net/http"
+	"os"
+	"os/exec"
+	"strings"
 )
 
 
@@ -29,13 +30,13 @@ type Message struct{
 }
 
 type Node struct{
-    ConHash.Node
+	ConHash.Node
     ResponseChannel chan interface{}
     TimeoutChannel chan interface{} 
 }
 
 type Ring struct{
-    ConHash.Ring
+	ConHash.Ring
 }
 
 
@@ -586,8 +587,8 @@ for the key-value pair and it in the response
 func main(){
 
     if len(os.Args) != 3{
-        fmt.Printf("Usage of program is: %s , <PORT> <DBPath>\n", os.Args[0])
-        os.Exit(0)
+       fmt.Printf("Usage of program is: %s , <PORT> <DBPath>\n", os.Args[0])
+       os.Exit(0)
     }
 	//Set constants here
 	const NUMBER_OF_VNODES = 3;
@@ -611,9 +612,9 @@ func main(){
     nodeQuery := "A2"
 	nodeIP, err := ring.GetNode(nodeQuery)
 	if err == nil {
-        fmt.Printf("Node %s found at : %s \n",nodeQuery,nodeIP)
+       fmt.Printf("Node %s found at : %s \n",nodeQuery,nodeIP)
     } else{
-        fmt.Printf("Node %s not found\n",nodeQuery)
+       fmt.Printf("Node %s not found\n",nodeQuery)
     }
 
     searchKey := "testing"
@@ -627,11 +628,18 @@ func main(){
 
     go node.Start()
 
+	s:= Stetho.NewStetho("5000", 1, 5)
+
+
+	//cheat a bit
+	s.AddNode(conNode)
+	s.Start()
+
 	//Start of CLI interactivity
 	reader := bufio.NewReader(os.Stdin)
     fmt.Printf("Node@%s:%s$ ",node.IP,node.Port)
 	for {
-        fmt.Printf("Node@%s:%s$ ",node.IP,node.Port)
+       fmt.Printf("Node@%s:%s$ ",node.IP,node.Port)
 		cmdString, err := reader.ReadString('\n')
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
