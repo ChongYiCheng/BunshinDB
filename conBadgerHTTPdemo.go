@@ -11,7 +11,7 @@ import (
     "os"
     "os/exec"
     "strings"
-    "bufio"
+    //"bufio"
     "bytes"
     "net"
     "errors"
@@ -843,19 +843,30 @@ func main(){
     fmt.Println("ring server register with stetho")
     ringServer.RegisterWithStetho("set-ring")
 
-	//Start of CLI interactivity
-	reader := bufio.NewReader(os.Stdin)
-    fmt.Printf("Node@%s:%s$ ",node.IP,node.Port)
-	for {
-        fmt.Printf("Node@%s:%s$ ",node.IP,node.Port)
-		cmdString, err := reader.ReadString('\n')
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
+	for i,nodeData := range node.Ring.RingNodeDataArray{
+		if i %2 == 1 && i < 10 {
+			ringServer.RegisterNodeWithStetho(nodeData.Port, "add-node")
+			time.Sleep(2 * time.Second)
 		}
-		err = node.runCommand(cmdString)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-		}
+
 	}
+
+	select {}
+
+
+	//Start of CLI interactivity
+	//reader := bufio.NewReader(os.Stdin)
+    //fmt.Printf("Node@%s:%s$ ",node.IP,node.Port)
+	//for {
+    //    fmt.Printf("Node@%s:%s$ ",node.IP,node.Port)
+	//	cmdString, err := reader.ReadString('\n')
+	//	if err != nil {
+	//		fmt.Fprintln(os.Stderr, err)
+	//	}
+	//	err = node.runCommand(cmdString)
+	//	if err != nil {
+	//		fmt.Fprintln(os.Stderr, err)
+	//	}
+	//}
 }
 

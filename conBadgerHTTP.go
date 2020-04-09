@@ -1,21 +1,21 @@
 package main
 
 import (
-    "encoding/json"
-    "log"
-    "fmt"
-    badger "github.com/dgraph-io/badger"
-    "net/http"
-    "os"
-    "os/exec"
-    "strings"
-    "bufio"
-    "bytes"
-    "net"
-    "errors"
-    glog "github.com/golang/glog"
-    "strconv"
-    "./ConHash"
+	"50.041-DistSysProject-BunshinDB/pkg/ConHash"
+	"bufio"
+	"bytes"
+	"encoding/json"
+	"errors"
+	"fmt"
+	badger "github.com/dgraph-io/badger"
+	glog "github.com/golang/glog"
+	"log"
+	"net"
+	"net/http"
+	"os"
+	"os/exec"
+	"strconv"
+	"strings"
 )
 
 
@@ -689,12 +689,7 @@ func main(){
 
     go node.Start()
 
-	s:= Stetho.NewStetho("5000", 1, 5)
 
-
-	//cheat a bit
-	s.AddNode(conNode)
-	s.Start()
 
 	//Start of CLI interactivity
 	reader := bufio.NewReader(os.Stdin)
