@@ -1,8 +1,10 @@
 package main
 
 import (
-    "encoding/json"
-    "log"
+	"50.041-DistSysProject-BunshinDB/Stetho"
+	"encoding/json"
+	"io/ioutil"
+	"log"
     "fmt"
     badger "github.com/dgraph-io/badger"
     "net/http"
@@ -15,7 +17,8 @@ import (
     "errors"
     glog "github.com/golang/glog"
     "strconv"
-    "./ConHash"
+    "50.041-DistSysProject-BunshinDB/pkg/ConHash"
+	"time"
 )
 
 
@@ -37,6 +40,7 @@ type Node struct{
 
 type Ring struct{
     ConHash.Ring
+    stethoUrl string
 }
 
 
@@ -64,6 +68,103 @@ func contains(s []int, e int) bool {
         }
     }
     return false
+}
+
+//TODO: Decide on standard port number for ring in future, currently hardcoded
+func (ring Ring) HttpServerStart(){
+	http.HandleFunc("/add-node", ring.AddNodeHandler)
+	http.HandleFunc("/faint-node", ring.FaintNodeHandler)
+	http.HandleFunc("/get-node", ring.GetNodeHandler)
+	http.HandleFunc("/hb", ring.HeartBeatHandler)
+
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", "5001"), nil))
+}
+
+
+
+func (ring Ring) AddNodeHandler(w http.ResponseWriter, r *http.Request) {
+	//TODO: change this
+	ring.HeartBeatHandler(w, r)
+}
+
+func (ring Ring) FaintNodeHandler(w http.ResponseWriter, r *http.Request) {
+	//TODO: change this
+	ring.HeartBeatHandler(w, r)
+}
+
+func (ring Ring) GetNodeHandler(w http.ResponseWriter, r *http.Request) {
+	//TODO: change this
+	ring.HeartBeatHandler(w, r)
+}
+
+//TODO: Refactor this part
+func (ring Ring) HeartBeatHandler(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK) //Set response code to 200
+	fmt.Fprintf(w,"") //Just send a blank reply at least the server knows you're reachable
+}
+
+func (ring *Ring) Start(){
+
+	ring.HttpServerStart()
+}
+
+func (ring Ring) RegisterWithStetho( endpoint string) {
+	requestBody, err := json.Marshal(map[string]string {
+		//TODO: don't hardcode it
+		"ringPort": "5001",
+	})
+
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	postUrl := fmt.Sprintf("%s/%s", ring.stethoUrl, endpoint)
+	resp, err := http.Post(postUrl, "application/json", bytes.NewBuffer(requestBody))
+
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	log.Println(string(body))
+}
+
+func (ring *Ring) RegisterNodeWithStetho(nodeUrl string, registerNodeEndpoint string) {
+	log.Println("Registering Node with Stetho Node")
+	postUrl := fmt.Sprintf("%s/%s", ring.stethoUrl, registerNodeEndpoint)
+	requestBody, err := json.Marshal(map[string]string {
+		//TODO: don't hardcode it
+		"nodeUrl": nodeUrl,
+	})
+
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	resp, err := http.Post(postUrl, "application/json", bytes.NewBuffer(requestBody))
+
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	log.Println(string(body))
+}
+
+func NewRing(conRing ConHash.Ring, stethoUrl string) Ring{
+	return Ring{conRing, stethoUrl}
 }
 
 func (node *Node) HttpServerStart(){
@@ -732,6 +833,15 @@ func main(){
 
 
     go node.Start()
+
+    //Start Stetho - supposed to start in another computer
+	s:= Stetho.NewStetho("5000", 1, 5)
+	go s.Start()
+	time.Sleep(time.Duration(3 * time.Second))
+    //Ring Server part
+    ringServer := NewRing(*ring, "http://10.12.7.122:5000")
+    fmt.Println("ring server register with stetho")
+    ringServer.RegisterWithStetho("set-ring")
 
 	//Start of CLI interactivity
 	reader := bufio.NewReader(os.Stdin)
