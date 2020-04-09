@@ -28,10 +28,10 @@ func (s *StethoNode) SetRing(r ConHttp.Ring){
 	s.ringServer = r
 }
 
-//TODO: Can explore making listen() async. Ping shall be synchronous for now.
-func (s *StethoNode) listen(){
+//TODO: Can explore making ping() async. Ping shall be synchronous for now.
+func (s *StethoNode) ping(){
 	time.Sleep(time.Duration(5 * time.Second))
-	log.Print("listening")
+	log.Print("Stetho is up and pinging")
 	for {
 		for _, node := range(s.nodes){
 			//https://github.com/golang/go/issues/18824
@@ -44,7 +44,6 @@ func (s *StethoNode) listen(){
 			//Fails for some reason
 			//TODO: need to be able to differentiate the type of failure such as timeout vs no host vs invalid port etc.
 			if err != nil {
-
 
 			}
 
@@ -89,7 +88,7 @@ func (s *StethoNode) AddNodeHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *StethoNode) Start(){
-	s.listen()
+	s.ping()
 	s.HttpServerStart()
 
 }
