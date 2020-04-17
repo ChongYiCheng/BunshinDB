@@ -15,7 +15,7 @@ import (
     "errors"
     glog "github.com/golang/glog"
     "strconv"
-    "./ConHash"
+    "./pkg/ConHash"
 )
 
 
@@ -100,7 +100,11 @@ func (node *Node) GetHandler(w http.ResponseWriter, r *http.Request) {
         fmt.Println("Failed to allocate node to key [%s]",query)
     }
 
+    //TODO Allow Nodes to check if they're in the Coordinator Node's pref list
+    //If so, let them retrieve the item from their database
     if contains(node.NodeRingPositions,dstNodeHash){ //If this node is responsible 
+
+        //TODO Need to Implement R mechanism here
         fmt.Println("Get Handler - Retrieving Key Value pair and sending it back to client")
         var responseStatus string
         queryResponse, err := node.QueryDB(query)
@@ -116,6 +120,8 @@ func (node *Node) GetHandler(w http.ResponseWriter, r *http.Request) {
         json.NewEncoder(w).Encode(responseMessage)
     } else{
         fmt.Println("Get Handler - Relaying Key to the Coordinator Node")
+        // TODO Implement a fallback mechanism if Coordinator Node is not alive
+
         //Need to relay get request to appropriate node
 		//dstNodeData := ring.RingNodeDataArray[dstNodeHash]
         //dstNodeIPPort := fmt.Sprintf("%s:%s",dstNodeData.IP,dstNodeData.Port)
@@ -151,7 +157,10 @@ func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
         if AllocErr != nil{
             fmt.Println("Failed to allocate node to key [%s]",key)
         }
+        //TODO Allow Nodes to check if they're in the Coordinator Node's pref list
+        //If so, let them retrieve the item from their database
         if contains(node.NodeRingPositions,dstNodeHash){ //If this node is responsible 
+            // TODO Need to implement W mechanism here
             fmt.Println("Put Handler - Updating Database with Key Value pair")
             var responseStatus string
             err := node.UpdateDB(msgData)
@@ -167,6 +176,9 @@ func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
             json.NewEncoder(w).Encode(responseMessage)
         } else{
             //Need to relay put request to appropriate node
+
+            //TODO In case appropriate node fails, check pref list and send to secondary
+
             //dstNodeData := ring.RingNodeDataArray[dstNodeHash]
             //dstNodeIPPort := dstNodeUrl
 
@@ -179,7 +191,7 @@ func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (node *Node) NewRingHandler(w http.ResponseWriter, r *http.Request) {
-    //To-Do update ring
+    //TODO update ring
     //Need a onUpdateRing function in conHash.go
 }
 
