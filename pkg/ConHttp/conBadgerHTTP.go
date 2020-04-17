@@ -1,24 +1,20 @@
-package main
+package ConHttp
 
 import (
-	"50.041-DistSysProject-BunshinDB/Stetho"
+	"50.041-DistSysProject-BunshinDB/pkg/ConHash"
+	"bufio"
+	"bytes"
 	"encoding/json"
-	"io/ioutil"
+	"errors"
+	"fmt"
+	badger "github.com/dgraph-io/badger"
+	glog "github.com/golang/glog"
 	"log"
-    "fmt"
-    badger "github.com/dgraph-io/badger"
-    "net/http"
-    "os"
-    "os/exec"
-    "strings"
-    //"bufio"
-    "bytes"
-    "net"
-    "errors"
-    glog "github.com/golang/glog"
-    "strconv"
-    "50.041-DistSysProject-BunshinDB/pkg/ConHash"
-	"time"
+	"net"
+	"net/http"
+	"os"
+	"os/exec"
+	"strings"
 )
 
 
@@ -33,14 +29,13 @@ type Message struct{
 }
 
 type Node struct{
-    ConHash.Node
+	ConHash.Node
     ResponseChannel chan interface{}
     TimeoutChannel chan interface{} 
 }
 
 type Ring struct{
-    ConHash.Ring
-    stethoUrl string
+	ConHash.Ring
 }
 
 
@@ -70,7 +65,6 @@ func contains(s []int, e int) bool {
     return false
 }
 
-
 func (node *Node) HttpServerStart(){
 
 	http.HandleFunc("/get", node.GetHandler)
@@ -83,7 +77,6 @@ func (node *Node) HttpServerStart(){
 
 func (node *Node) GetHandler(w http.ResponseWriter, r *http.Request) {
     var msg *Message
-    fmt.Println("Get Handler activated")
 
     w.Header().Set("Content-Type", "application/json")
     if r.Body == nil {
@@ -96,7 +89,6 @@ func (node *Node) GetHandler(w http.ResponseWriter, r *http.Request) {
         http.Error(w, err.Error(), 400)
         return
     }
-    fmt.Println("Get Handler - Allocating Key")
     fmt.Println(msg)
     query := msg.Query
     ring := node.Ring
@@ -106,7 +98,6 @@ func (node *Node) GetHandler(w http.ResponseWriter, r *http.Request) {
     }
 
     if contains(node.NodeRingPositions,dstNodeHash){ //If this node is responsible 
-        fmt.Println("Get Handler - Retrieving Key Value pair and sending it back to client")
         var responseStatus string
         queryResponse, err := node.QueryDB(query)
         if err != nil{
@@ -120,21 +111,17 @@ func (node *Node) GetHandler(w http.ResponseWriter, r *http.Request) {
         }
         json.NewEncoder(w).Encode(responseMessage)
     } else{
-        fmt.Println("Get Handler - Relaying Key to the Coordinator Node")
         //Need to relay get request to appropriate node
 		//dstNodeData := ring.RingNodeDataArray[dstNodeHash]
         //dstNodeIPPort := fmt.Sprintf("%s:%s",dstNodeData.IP,dstNodeData.Port)
         node.HttpClientReq(msg,dstNodeUrl,"get")
-        fmt.Println("Get Handler - Returning relayed message to client")
         responseMessage := <-node.ResponseChannel
-        fmt.Println("Received Relayed Msg from Coordinator Node")
         json.NewEncoder(w).Encode(responseMessage)
     }
 }
 
 
 func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
-    fmt.Println("Put Handler activated")
     var msg *Message
 
     w.Header().Set("Content-Type", "application/json")
@@ -148,16 +135,15 @@ func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
         http.Error(w, err.Error(), 400)
         return
     }
+    fmt.Println(msg)
     msgData := msg.Data
     ring := node.Ring
-    fmt.Println("Put Handler - Allocating Key")
     for key, _ := range msgData{
         dstNodeHash, dstNodeUrl , AllocErr := ring.AllocateKey(key) //Get the destination node of this key
         if AllocErr != nil{
             fmt.Println("Failed to allocate node to key [%s]",key)
         }
         if contains(node.NodeRingPositions,dstNodeHash){ //If this node is responsible 
-            fmt.Println("Put Handler - Updating Database with Key Value pair")
             var responseStatus string
             err := node.UpdateDB(msgData)
             if err != nil{
@@ -217,7 +203,6 @@ func (node *Node) GetNodeHandler(w http.ResponseWriter, r *http.Request) {
         SenderIP:node.IP,SenderPort:node.Port,Data:responseData,
         ResponseCode:"200",Timestamp:[]int{},
     }
-    fmt.Println(responseMessage)
     json.NewEncoder(w).Encode(responseMessage)
 }
 
@@ -259,8 +244,9 @@ func (node *Node) handleMessage(m *Message) *Message{
 func (node *Node) HttpClientReq(msg *Message,targetUrl string,endpoint string){
 	client := &http.Client{
 	}
-    fmt.Println("HTTP Client Req function called")
+
     url := fmt.Sprintf("http://%s/%s",targetUrl,endpoint)
+    fmt.Println(msg)
 
     jsonBuffer, err := json.Marshal(msg)
     handle(err)
@@ -269,28 +255,17 @@ func (node *Node) HttpClientReq(msg *Message,targetUrl string,endpoint string){
     req.Header.Set("Content-Type", "application/json")
 
     res, err := client.Do(req)
-    defer res.Body.Close()
-    fmt.Println("HTTP Client Req - Got a response")
 
     // always close the response-body, even if content is not required
+    defer res.Body.Close()
 
     if err != nil {
          fmt.Println("Unable to reach the server.")
     } else {
         var resMsg Message
 		json.NewDecoder(res.Body).Decode(&resMsg)
-        fmt.Printf("Response Message is \n%v\n",resMsg)
-        go func(){
-            node.ResponseChannel <- resMsg
-        }()
-        //select{
-        //case node.ResponseChannel <- resMsg:
-        //    fmt.Println("Hello hello my name's dibo")
-        //        // Do nothing
-        //case <- time.After(100 * time.Millisecond):
-        //    fmt.Println("Hello hello my name's nobo")
-        //    //Do nothing
-        //}
+        fmt.Println(resMsg)
+        node.ResponseChannel <- resMsg
     }
 }
 
@@ -385,7 +360,7 @@ func (node *Node) DeleteKey(Key string) error{
     return err
 }
 
-func externalIP() (string, error) {
+func ExternalIP() (string, error) {
 	ifaces, err := net.Interfaces()
 	if err != nil {
 		return "", err
@@ -505,38 +480,27 @@ func (node *Node) runCommand(commandStr string) error {
             fmt.Printf(
 `
 Here are the list of commands:
+help : Shows lists of commands
 
-help: Shows lists of commands
+exit : quits program
 
-exit: quits program
-
-query: Usage - query <key>
+query : Usage - query <key>
 query searches the database for a key and returns the value
 
-update: Usage - update <key> <value>
+update : Usage - update <key> <value>
 update takes user inputted key value pair and updates the database
 
-view: Views database
+view : Views database
 
-delete: Usage - delete <key>
+delete : Usage - delete <key>
 delete deletes an existing key and its respective value from database
 
-allocateKey: Usage - allocateKey <Key>
-allocateKey searches the node's consistent hash ring and find out which node is
-the coordinator node which is responsible for the read/write for the given key
-
-httpPut: Usage - httpPut <targetIP> <targetPort> <key> <value>
+httpPut : Usage - httpPut <targetIP> <targetPort> <key> <value>
 httpPut sends user inputted data to another server and updates their database
 
-httpGet: Usage - httpGet <targetIP> <targetPort> <key>
+httpGet : Usage - httpGet <targetIP> <targetPort> <key>
 httpGet sends a key to another server, the receiving server will query its database
 for the key-value pair and it in the response
-
-httpGetNode: Usage - httpGetNode <targetIP> <targetPort> <key>
-httpGetNode sends a key to another server, the receiving server will refer to the consistent
-hash ring and find out which coordinator node is responsible for the read/writes of this key.
-Then, the server will return a message to the client containing the Node ID and the Node's IP
-address and port
 
 `)
         case "query":
@@ -549,7 +513,7 @@ address and port
             if err!=nil{
                 fmt.Printf("Key <%s> not found in datbase\n",key)
             } else{
-            fmt.Printf("Query results are %s\n",results)
+            fmt.Printf("Query results are %s",results)
             }
         case "update":
            if len(arrCommandStr)!=3{
@@ -573,25 +537,14 @@ address and port
             key := arrCommandStr[1]
             err := node.DeleteKey(key)
             if err!=nil{
-                fmt.Printf("Key <%s> not in database, can't delete\n",key)
+                fmt.Printf("Key <%s> not in database, can't delete",key)
             } else {
                 fmt.Printf("Key <%s> has been deleted from database\n",key)
-            }
-        case "allocateKey":
-            if len(arrCommandStr)!=2{
-                return fmt.Errorf("Usage of allocateKey - allocateKey <Key>")
-            }
-            key := arrCommandStr[1]
-            dstNodeHash, dstNodeUrl, AllocErr := node.Ring.AllocateKey(key)
-            if AllocErr!=nil{
-                fmt.Printf("Failed to allocate key to a Coordinator Node\n",key)
-            } else {
-                fmt.Printf("Coordinator for key <%s> is Node %s and its url is %s\n",key,node.Ring.RingNodeDataArray[dstNodeHash].ID ,dstNodeUrl)
             }
 		case "httpPut":
 			//Do nothing
 			if len(arrCommandStr)!=5{
-				return fmt.Errorf("Usage of httpPut - httpPut <targetIP> <targetPort> <key> <value")
+				return fmt.Errorf("Usage of httpSend - httpSend <targetIP> <targetPort> <key> <value")
 			}
 			httpMsg := &Message{}
 			httpMsg.SenderIP = node.IP
@@ -619,19 +572,6 @@ address and port
             fmt.Printf("httpMsg %s\n",httpMsg)
             targetUrl := fmt.Sprintf("%s:%s",arrCommandStr[1],arrCommandStr[2])
             node.HttpClientReq(httpMsg,targetUrl,"get")
-        case "httpGetNode":
-            if len(arrCommandStr)!=4{
-                return fmt.Errorf("Usage of httpGetNode - httpGetNode <targetIP> <targetPort> <key to query>")
-            }
-            httpMsg := &Message{}
-            httpMsg.SenderIP = node.IP
-            httpMsg.SenderPort = node.Port
-            httpMsg.MessageType = 0
-            key := arrCommandStr[3]
-            httpMsg.Query = key
-            fmt.Printf("httpMsg %s\n",httpMsg)
-            targetUrl := fmt.Sprintf("%s:%s",arrCommandStr[1],arrCommandStr[2])
-            node.HttpClientReq(httpMsg,targetUrl,"get-node")
         default:
 		cmd := exec.Command(arrCommandStr[0], arrCommandStr[1:]...)
 		cmd.Stderr = os.Stderr
@@ -645,8 +585,8 @@ address and port
 
 func main(){
 
-    if len(os.Args) != 4{
-        fmt.Printf("Usage of program is: %s <PORT> <DBPath> <NodeNumID>\n", os.Args[0])
+    if len(os.Args) != 3{
+        fmt.Printf("Usage of program is: %s , <PORT> <DBPath>\n", os.Args[0])
         os.Exit(0)
     }
 	//Set constants here
@@ -654,73 +594,22 @@ func main(){
 	const MAX_KEY = 100;
     const REPLICATION_FACTOR = 3;
 
-    currentIP, err := externalIP()
+    currentIP, err := ExternalIP()
     fmt.Printf("Setting Node's IP to be %s\n",currentIP)
     handle(err)
     port := os.Args[1]
     DBPath := os.Args[2]
-    NodeNumID,strconverr := strconv.Atoi(os.Args[3])
-
-    if strconverr != nil{
-        fmt.Errorf("Failed to convert NodeNumID to int. Please enter an integer")
-    }
 
     ring := ConHash.NewRing(MAX_KEY,REPLICATION_FACTOR)
-	conNode := ConHash.NewNode(NodeNumID, NUMBER_OF_VNODES,DBPath,currentIP,port,ring)
+	conNode := ConHash.NewNode(1, NUMBER_OF_VNODES,DBPath,currentIP,port,ring)
     nodeResponseChannel := make(chan interface{})
     nodeTimeoutChannel := make(chan interface{})
     node := Node{conNode,nodeResponseChannel,nodeTimeoutChannel}
 	//should with assign the ring to node.ring only when we register with ring?
-	//node.RegisterWithRing(node.Ring)
-    //For demo purposes, gonna hard code a ring
-    const MAXID = 20
-    const REPLICATIONFACTOR = 1
-    NodeDataArray := make([]ConHash.NodeData,MAXID,MAXID)
-
-    NodeDataArray[1] = ConHash.NodeData{"A0","A",1,"127.0.0.1","8080"}
-    NodeDataArray[3]= ConHash.NodeData{"A1","A",3,"127.0.0.1","8080"}
-    NodeDataArray[5] = ConHash.NodeData{"A2","A",5,"127.0.0.1","8080"}
-    NodeDataArray[7] = ConHash.NodeData{"A3","A",7,"127.0.0.1","8080"}
-    NodeDataArray[9] = ConHash.NodeData{"A4","A",9,"127.0.0.1","8080"}
-    NodeDataArray[11] = ConHash.NodeData{"B0","B",11,"127.0.0.1","8081"}
-    NodeDataArray[13] = ConHash.NodeData{"B1","B",13,"127.0.0.1","8081"}
-    NodeDataArray[15] = ConHash.NodeData{"B2","B",15,"127.0.0.1","8081"}
-    NodeDataArray[17] = ConHash.NodeData{"B3","B",17,"127.0.0.1","8081"}
-    NodeDataArray[19] = ConHash.NodeData{"B4","B",19,"127.0.0.1","8081"}
-    
-
-
-
-    NodePrefList := map[int][]ConHash.NodeData{
-        1:[]ConHash.NodeData{ConHash.NodeData{"B0","B",11,"127.0.0.1","8081"}},
-        3:[]ConHash.NodeData{ConHash.NodeData{"B0","B",11,"127.0.0.1","8081"}},
-        5:[]ConHash.NodeData{ConHash.NodeData{"B0","B",11,"127.0.0.1","8081"}},
-        7:[]ConHash.NodeData{ConHash.NodeData{"B0","B",11,"127.0.0.1","8081"}},
-        9:[]ConHash.NodeData{ConHash.NodeData{"B0","B",11,"127.0.0.1","8081"}},
-        11:[]ConHash.NodeData{ConHash.NodeData{"A0","A",1,"127.0.0.1","8080"}},
-        13:[]ConHash.NodeData{ConHash.NodeData{"A0","A",1,"127.0.0.1","8080"}},
-        15:[]ConHash.NodeData{ConHash.NodeData{"A0","A",1,"127.0.0.1","8080"}},
-        17:[]ConHash.NodeData{ConHash.NodeData{"A0","A",1,"127.0.0.1","8080"}},
-        19:[]ConHash.NodeData{ConHash.NodeData{"A0","A",1,"127.0.0.1","8080"}},
-    }
-    demoRing := &ConHash.Ring{
-        MaxID: MAXID,
-        RingNodeDataArray:NodeDataArray,
-        NodePrefList:NodePrefList,
-        ReplicationFactor: REPLICATIONFACTOR,
-    }
-    fmt.Printf("Reloading Ring from memory: Ring is %v\n",demoRing)
-
-    node.Ring = demoRing
-    for _,nodeData := range node.Ring.RingNodeDataArray{
-        if nodeData.CName == node.CName{
-            node.NodeRingPositions = append(node.NodeRingPositions,nodeData.Hash)
-        }
-    }
-    fmt.Println(node.NodeRingPositions)
+	node.RegisterWithRing(node.Ring)
 
     nodeQuery := "A2"
-	nodeIP, err := demoRing.GetNode(nodeQuery)
+	nodeIP, err := ring.GetNode(nodeQuery)
 	if err == nil {
         fmt.Printf("Node %s found at : %s \n",nodeQuery,nodeIP)
     } else{
@@ -728,9 +617,9 @@ func main(){
     }
 
     searchKey := "testing"
-    nodeHash, addr, err := demoRing.AllocateKey(searchKey)
+    _, addr, err := ring.AllocateKey(searchKey)
     if err == nil {
-		fmt.Printf("Key [%s] found at node %s with ip [%s] \n",searchKey, demoRing.RingNodeDataArray[nodeHash].ID,addr)
+		fmt.Printf("Key [%s] found at node with ip [%s] \n", searchKey, addr)
 	} else {
 		fmt.Printf("Node for key [%s] not found \n", searchKey )
 	}
@@ -738,39 +627,19 @@ func main(){
 
     go node.Start()
 
-    //Start Stetho - supposed to start in another computer
-	s:= Stetho.NewStetho("5000", 1, 5)
-	go s.Start()
-	time.Sleep(time.Duration(3 * time.Second))
-    //Ring Server part
-    ringServer := NewRing(*ring, "http://10.12.7.122:5000")
-    fmt.Println("ring server register with stetho")
-    ringServer.RegisterWithStetho("set-ring")
-
-	for i,nodeData := range node.Ring.RingNodeDataArray{
-		if i %2 == 1 && i < 10 {
-			ringServer.RegisterNodeWithStetho(nodeData.Port, "add-node")
-			time.Sleep(2 * time.Second)
-		}
-
-	}
-
-	select {}
-
-
 	//Start of CLI interactivity
-	//reader := bufio.NewReader(os.Stdin)
-    //fmt.Printf("Node@%s:%s$ ",node.IP,node.Port)
-	//for {
-    //    fmt.Printf("Node@%s:%s$ ",node.IP,node.Port)
-	//	cmdString, err := reader.ReadString('\n')
-	//	if err != nil {
-	//		fmt.Fprintln(os.Stderr, err)
-	//	}
-	//	err = node.runCommand(cmdString)
-	//	if err != nil {
-	//		fmt.Fprintln(os.Stderr, err)
-	//	}
-	//}
+	reader := bufio.NewReader(os.Stdin)
+    fmt.Printf("Node@%s:%s$ ",node.IP,node.Port)
+	for {
+        fmt.Printf("Node@%s:%s$ ",node.IP,node.Port)
+		cmdString, err := reader.ReadString('\n')
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+		}
+		err = node.runCommand(cmdString)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+		}
+	}
 }
 
