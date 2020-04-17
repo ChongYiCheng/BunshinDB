@@ -689,7 +689,6 @@ func main(){
     NodeDataArray[19] = ConHash.NodeData{"B4","B",19,"127.0.0.1","8081"}
     
 
-    fmt.Printf("HardCoded NodeDataArray is %v\n",NodeDataArray)
 
 
     NodePrefList := map[int][]ConHash.NodeData{
@@ -710,6 +709,7 @@ func main(){
         NodePrefList:NodePrefList,
         ReplicationFactor: REPLICATIONFACTOR,
     }
+    fmt.Printf("Reloading Ring from memory: Ring is %v\n",demoRing)
 
     node.Ring = demoRing
     for _,nodeData := range node.Ring.RingNodeDataArray{

@@ -1,116 +1,269 @@
 package main
 
 import (
+    "encoding/json"
+    "fmt"
+    "net/http"
     "os"
     "os/exec"
-    "fmt"
     "strings"
-    "encoding/json"
-    "net/http"
+    "bufio"
     "bytes"
+    "net"
+    "errors"
+    //"time"
 )
 
-type Client struct{
-    ip string 
-    port string
-    serverList []string
+type Message struct{
+    SenderIP string
+    SenderPort string
+    MessageType int
+    Data map[string][]byte //Key-Value pair
+    Query string //Just a key string for receiver to query
+    ResponseCode string //200,404 etc.
+    Timestamp []int //Vector Clock
 }
 
+type Client struct{
+    IP string
+    Port string
+    KnownNodeURLs []string
+}
 
-func (client *Client) httpClientReq(msg *Message,targetUrl string){
-	client_ := &http.Client{
+func (client *Client) HttpClientReq(msg *Message,targetUrl string,endpoint string){
+	httpClient := &http.Client{
 	}
+    fmt.Println("HTTP Client Req function called")
+    url := fmt.Sprintf("http://%s/%s",targetUrl,endpoint)
 
-    url := fmt.Sprintf("http://%s/",targetUrl)
-    fmt.Println(msg)
-
-    jsonBuffer, err := json.Marshal(msg)
-    handle(err)
+    jsonBuffer, marshalErr := json.Marshal(msg)
+    if marshalErr != nil{
+        fmt.Errorf("Failed to Marshal message")
+    }
 
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonBuffer))
     req.Header.Set("Content-Type", "application/json")
 
-    res, err := client_.Do(req)
+    res, err := httpClient.Do(req)
+    defer res.Body.Close()
+    fmt.Println("HTTP Client Req - Got a response")
+
+    // always close the response-body, even if content is not required
+
     if err != nil {
          fmt.Println("Unable to reach the server.")
     } else {
         var resMsg Message
 		json.NewDecoder(res.Body).Decode(&resMsg)
-        fmt.Println(resMsg, "(http response message)")
-        if len(resMsg.Data) == 0 {
-            fmt.Println("PUT has completed")
-            return 
-        }
-        keys := make([]string, len(resMsg.Data))
-		i := 0
-		for k := range resMsg.Data {
-			keys[i] = k
-			i++
-		}
-		byt := resMsg.Data[keys[0]]
-		var cart ShoppingCart
-		json.Unmarshal(byt, &cart)
-		fmt.Println("The shopping cart is:", cart)
+        fmt.Printf("Response Message is \n%v\n",resMsg)
     }
 }
 
-func (client *Client) getCart(arrCommandStr []string) { 
-    httpMsg := &Message{}
-    httpMsg.SenderIP = client.ip
-    httpMsg.SenderPort = client.port
-    httpMsg.MessageType = "GET"
-    key := arrCommandStr[3]
-    httpMsg.Query = key
-    targetUrl := fmt.Sprintf("%s:%s",arrCommandStr[1],arrCommandStr[2])
-    client.httpClientReq(httpMsg,targetUrl)
+func externalIP() (string, error) {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return "", err
+	}
+	for _, iface := range ifaces {
+		if iface.Flags&net.FlagUp == 0 {
+			continue // interface down
+		}
+		if iface.Flags&net.FlagLoopback != 0 {
+			continue // loopback interface
+		}
+		addrs, err := iface.Addrs()
+		if err != nil {
+			return "", err
+		}
+		for _, addr := range addrs {
+			var ip net.IP
+			switch v := addr.(type) {
+			case *net.IPNet:
+				ip = v.IP
+			case *net.IPAddr:
+				ip = v.IP
+			}
+			if ip == nil || ip.IsLoopback() {
+				continue
+			}
+			ip = ip.To4()
+			if ip == nil {
+				continue // not an ipv4 address
+			}
+			return ip.String(), nil
+		}
+	}
+	return "", errors.New("are you connected to the network?")
 }
 
+func parseCommandLine(command string) ([]string, error) {
+	//Finite state machine to handle arguments with white spaces enclosed within quotes
+	//Handles escaped stuff too
+    var args []string
+    state := "start"
+    current := ""
+    quote := "\""
+    escapeNext := true
+    for i := 0; i < len(command); i++ {
+        c := command[i]
+
+        if state == "quotes" {
+            if string(c) != quote {
+                current += string(c)
+            } else {
+                args = append(args, current)
+                current = ""
+                state = "start"
+            }
+            continue
+        }
+
+        if (escapeNext) {
+            current += string(c)
+            escapeNext = false
+            continue
+        }
+
+        if (c == '\\') {
+            escapeNext = true
+            continue
+        }
+
+        if c == '"' || c == '\'' {
+            state = "quotes"
+            quote = string(c)
+            continue
+        }
+
+        if state == "arg" {
+            if c == ' ' || c == '\t' {
+                args = append(args, current)
+                current = ""
+                state = "start"
+            } else {
+                current += string(c)
+            }
+            continue
+        }
+
+        if c != ' ' && c != '\t' {
+            state = "arg"
+            current += string(c)
+        }
+    }
+
+    if state == "quotes" {
+        return []string{}, errors.New(fmt.Sprintf("Unclosed quote in command line: %s", command))
+    }
+
+    if current != "" {
+        args = append(args, current)
+    }
+
+    return args, nil
+}
 
 func (client *Client) runCommand(commandStr string) error {
-	commandStr = strings.TrimSuffix(commandStr, "\r\n")
+	commandStr = strings.TrimSuffix(commandStr, "\n")
 	arrCommandStr, parseErr := parseCommandLine(commandStr)
-	handle(parseErr)
+    if parseErr != nil{
+        fmt.Errorf("Failed to parse user command inputs")
+    }
 
     //Subcommands
     if len(arrCommandStr)>=1{
 		switch arrCommandStr[0] {
 		case "exit":
 			os.Exit(0)
-		case "httpPut":
-			//Do nothing
-			if len(arrCommandStr)<5{
-				return fmt.Errorf("Usage of httpSend - httpSend <targetIP> <targetPort> <key> <value1> <value2>...etc")
+			// add another case here for custom commands.
+        case "help":
+            fmt.Printf(
+`
+Here are the list of commands:
+
+help: Shows list of commands
+
+exit: quits program
+
+get: Usage - get <key>
+query will send a key to a random DynamoDB Node and retrieves the key-value pair
+from the Coordinator Node 
+
+put: Usage - put <key> <value>
+put will send a key value pair to a random DyanmoDB Node and put it in the database
+under the Coordinator Node
+`)
+		case "get":
+            if len(arrCommandStr)!=2{
+                return fmt.Errorf("Usage of query - query <Key>")
+            }
+            httpMsg := &Message{}
+            httpMsg.SenderIP = client.IP
+            httpMsg.SenderPort = client.Port
+            httpMsg.MessageType = 0
+            key := arrCommandStr[1]
+            httpMsg.Query = key
+            fmt.Printf("httpMsg %s\n",httpMsg)
+            targetUrl := client.KnownNodeURLs[0]
+            client.HttpClientReq(httpMsg,targetUrl,"get")
+
+        case "put":
+			if len(arrCommandStr)!=3{
+			   return fmt.Errorf("Usage of put - put <key> <value>")
 			}
 			httpMsg := &Message{}
-			httpMsg.SenderIP = client.ip
-			httpMsg.SenderPort = client.port
-			httpMsg.MessageType = "POST"
-            key := arrCommandStr[3]
-            items := arrCommandStr[4:]
-            shoppingCart := &ShoppingCart{Items:items}
-            // rawValue := arrCommandStr[4]
-            value, marshalErr := json.Marshal(shoppingCart)
-            handle(marshalErr)
-            data := map[string][]byte{key:value}
-			httpMsg.Data = data
-            fmt.Printf("httpMsg %s\r\n",httpMsg)
-            targetUrl := fmt.Sprintf("%s:%s",arrCommandStr[1],arrCommandStr[2])
-            client.httpClientReq(httpMsg,targetUrl)
-        case "httpGet":
-            if len(arrCommandStr)!=4{
-                return fmt.Errorf("Usage of httpGet - httpGet <targetIP> <targetPort> <key to query>")
+			httpMsg.SenderIP = client.IP
+			httpMsg.SenderPort = client.Port
+			httpMsg.MessageType = 1
+			key := arrCommandStr[1]
+			rawValue := arrCommandStr[2]
+			value, marshalErr := json.Marshal(rawValue)
+            if marshalErr != nil{
+                fmt.Errorf("Failed to marshal message")
             }
-            client.getCart(arrCommandStr)
-
+			data := map[string][]byte{key:value}
+			httpMsg.Data = data
+			fmt.Printf("httpMsg %s\n",httpMsg)
+			targetUrl := client.KnownNodeURLs[0]
+			client.HttpClientReq(httpMsg,targetUrl,"put")
         default:
 		cmd := exec.Command(arrCommandStr[0], arrCommandStr[1:]...)
 		cmd.Stderr = os.Stderr
 		cmd.Stdout = os.Stdout
 		return cmd.Run()
-        }
     }
+}
     return nil
 }
 
+func main(){
+	if len(os.Args) != 2{
+        fmt.Printf("Usage of program is: %s <PORT>\n",os.Args[0])
+        os.Exit(0)
+    }
+    currentIP, err := externalIP()
+    fmt.Printf("Setting Node's IP to be %s\n",currentIP)
+    if err != nil{
+        fmt.Errorf("Failed to obtain IP address")
+    }
+    port := os.Args[1]
+    //Set constants here
+    KnownNodeUrls := []string{fmt.Sprintf("%s:8080",currentIP)}
 
+    client := &Client{currentIP,port,KnownNodeUrls}
 
+	//Start of CLI interactivity
+	reader := bufio.NewReader(os.Stdin)
+    fmt.Printf("Client@%s:%s$ ",client.IP,client.Port)
+	for {
+        fmt.Printf("Client@%s:%s$ ",client.IP,client.Port)
+		cmdString, err := reader.ReadString('\n')
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+		}
+		err = client.runCommand(cmdString)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+		}
+	}
+}
