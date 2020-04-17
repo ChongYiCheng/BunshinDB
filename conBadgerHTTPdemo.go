@@ -645,7 +645,7 @@ func main(){
         os.Exit(0)
     }
 	//Set constants here
-	const NUMBER_OF_VNODES = 3;
+	const NUMBER_OF_VNODES = 4;
 	const MAX_KEY = 100;
     const REPLICATION_FACTOR = 3;
 
@@ -659,6 +659,7 @@ func main(){
     if strconverr != nil{
         fmt.Errorf("Failed to convert NodeNumID to int. Please enter an integer")
     }
+    fmt.Println("Testing 1")
 
     ring := ConHash.NewRing(MAX_KEY,REPLICATION_FACTOR)
 	conNode := ConHash.NewNode(NodeNumID, NUMBER_OF_VNODES,DBPath,currentIP,port,ring)
@@ -668,42 +669,67 @@ func main(){
 	//should with assign the ring to node.ring only when we register with ring?
 	//node.RegisterWithRing(node.Ring)
     //For demo purposes, gonna hard code a ring
-    const MAXID = 20
-    const REPLICATIONFACTOR = 1
-    NodeDataArray := make([]ConHash.NodeData,MAXID,MAXID)
+    //const MAXID = 100
+    const REPLICATIONFACTOR = 2
+    NodeDataArray := make([]ConHash.NodeData,MAX_KEY,MAX_KEY)
+    fmt.Println("Hello")
 
-    NodeDataArray[1] = ConHash.NodeData{"A0","A",1,"127.0.0.1","8080"}
-    NodeDataArray[3]= ConHash.NodeData{"A1","A",3,"127.0.0.1","8080"}
-    NodeDataArray[5] = ConHash.NodeData{"A2","A",5,"127.0.0.1","8080"}
-    NodeDataArray[7] = ConHash.NodeData{"A3","A",7,"127.0.0.1","8080"}
-    NodeDataArray[9] = ConHash.NodeData{"A4","A",9,"127.0.0.1","8080"}
-    NodeDataArray[11] = ConHash.NodeData{"B0","B",11,"127.0.0.1","8081"}
-    NodeDataArray[13] = ConHash.NodeData{"B1","B",13,"127.0.0.1","8081"}
-    NodeDataArray[15] = ConHash.NodeData{"B2","B",15,"127.0.0.1","8081"}
-    NodeDataArray[17] = ConHash.NodeData{"B3","B",17,"127.0.0.1","8081"}
-    NodeDataArray[19] = ConHash.NodeData{"B4","B",19,"127.0.0.1","8081"}
-    
+    NodeDataArray[4] = ConHash.NodeData{"A0","A",4,"127.0.0.1","8080"}
+    NodeDataArray[9] = ConHash.NodeData{"B0","B",9,"127.0.0.1","8081"}
+    NodeDataArray[14] = ConHash.NodeData{"C0","C",14,"127.0.0.1","8082"}
+    NodeDataArray[19] = ConHash.NodeData{"D0","D",19,"127.0.0.1","8083"}
+    NodeDataArray[24] = ConHash.NodeData{"A1","A",24,"127.0.0.1","8080"}
+    NodeDataArray[29] = ConHash.NodeData{"B1","B",29,"127.0.0.1","8081"}
+    NodeDataArray[34] = ConHash.NodeData{"C1","C",34,"127.0.0.1","8082"}
+    NodeDataArray[39] = ConHash.NodeData{"D1","D",39,"127.0.0.1","8083"}
+    NodeDataArray[44] = ConHash.NodeData{"A2","A",44,"127.0.0.1","8089"}
+    NodeDataArray[49] = ConHash.NodeData{"B2","B",49,"127.0.0.1","8081"}
+    NodeDataArray[54] = ConHash.NodeData{"C2","C",54,"127.0.0.1","8082"}
+    NodeDataArray[59] = ConHash.NodeData{"D2","D",59,"127.0.0.1","8083"}
+    NodeDataArray[64] = ConHash.NodeData{"A3","A",64,"127.0.0.1","8080"}
+    NodeDataArray[69] = ConHash.NodeData{"B3","B",69,"127.0.0.1","8081"}
+    NodeDataArray[74] = ConHash.NodeData{"C3","C",74,"127.0.0.1","8082"}
+    NodeDataArray[79] = ConHash.NodeData{"D3","D",79,"127.0.0.1","8083"}
+    NodeDataArray[84] = ConHash.NodeData{"A4","A",84,"127.0.0.1","8080"}
+    NodeDataArray[89] = ConHash.NodeData{"B4","B",89,"127.0.0.1","8081"}
+    NodeDataArray[94] = ConHash.NodeData{"C4","C",94,"127.0.0.1","8082"}
+    NodeDataArray[99] = ConHash.NodeData{"D4","D",99,"127.0.0.1","8083"}
 
 
 
-    NodePrefList := map[int][]ConHash.NodeData{
-        1:[]ConHash.NodeData{ConHash.NodeData{"B0","B",11,"127.0.0.1","8081"}},
-        3:[]ConHash.NodeData{ConHash.NodeData{"B0","B",11,"127.0.0.1","8081"}},
-        5:[]ConHash.NodeData{ConHash.NodeData{"B0","B",11,"127.0.0.1","8081"}},
-        7:[]ConHash.NodeData{ConHash.NodeData{"B0","B",11,"127.0.0.1","8081"}},
-        9:[]ConHash.NodeData{ConHash.NodeData{"B0","B",11,"127.0.0.1","8081"}},
-        11:[]ConHash.NodeData{ConHash.NodeData{"A0","A",1,"127.0.0.1","8080"}},
-        13:[]ConHash.NodeData{ConHash.NodeData{"A0","A",1,"127.0.0.1","8080"}},
-        15:[]ConHash.NodeData{ConHash.NodeData{"A0","A",1,"127.0.0.1","8080"}},
-        17:[]ConHash.NodeData{ConHash.NodeData{"A0","A",1,"127.0.0.1","8080"}},
-        19:[]ConHash.NodeData{ConHash.NodeData{"A0","A",1,"127.0.0.1","8080"}},
-    }
+    //NodePrefList := map[int][]ConHash.NodeData{
+    //    4:[]ConHash.NodeData{ConHash.NodeData{"B0","B",9,"127.0.0.1","8081"},ConHash.NodeData{"C0","C",14,"127.0.0.1","8082"}},
+    //    9:[]ConHash.NodeData{ConHash.NodeData{"C0","C",14,"127.0.0.1","8082"},ConHash.NodeData{"D0","D",19,"127.0.0.1","8083"}},
+    //    14:[]ConHash.NodeData{ConHash.NodeData{"D0","D",19,"127.0.0.1","8083"},ConHash.NodeData{"A1","A",24,"127.0.0.1","8080"}},
+    //    19:[]ConHash.NodeData{ConHash.NodeData{"A1","A",24,"127.0.0.1","8080"},ConHash.NodeData{"B1","B",29,"127.0.0.1","8081"}},
+    //    24:[]ConHash.NodeData{ConHash.NodeData{"B1","B",29,"127.0.0.1","8081"},ConHash.NodeData{"C1","C",34,"127.0.0.1","8082"}},
+    //    29:[]ConHash.NodeData{ConHash.NodeData{"C1","C",34,"127.0.0.1","8082"},ConHash.NodeData{"D1","D",39,"127.0.0.1","8083"}},
+    //    34:[]ConHash.NodeData{ConHash.NodeData{"D1","D",39,"127.0.0.1","8083"},ConHash.NodeData{"A2","A",44,"127.0.0.1","8080"}},
+    //    39:[]ConHash.NodeData{ConHash.NodeData{"A2","A",44,"127.0.0.1","8080"},ConHash.NodeData{"B2","B",49,"127.0.0.1","8081"}},
+    //    44:[]ConHash.NodeData{ConHash.NodeData{"B2","A",49,"127.0.0.1","8081"},ConHash.NodeData{"C2","C",54,"127.0.0.1","8082"}},
+    //    49:[]ConHash.NodeData{ConHash.NodeData{"C2","C",54,"127.0.0.1","8082"},ConHash.NodeData{"D2","D",59,"127.0.0.1","8083"}},
+    //    54:[]ConHash.NodeData{ConHash.NodeData{"D2","D",59,"127.0.0.1","8083"},ConHash.NodeData{"A3","A",64,"127.0.0.1","8080"}},
+    //    59:[]ConHash.NodeData{ConHash.NodeData{"A3","A",64,"127.0.0.1","8080"},ConHash.NodeData{"B3","B",69,"127.0.0.1","8081"}},
+    //    64:[]ConHash.NodeData{ConHash.NodeData{"B3","B",69,"127.0.0.1","8081"},ConHash.NodeData{"C3","C",74,"127.0.0.1","8082"}},
+    //    69:[]ConHash.NodeData{ConHash.NodeData{"C3","C",74,"127.0.0.1","8082"},ConHash.NodeData{"D3","D",79,"127.0.0.1","8083"}},
+    //    74:[]ConHash.NodeData{ConHash.NodeData{"D3","D",79,"127.0.0.1","8083"},ConHash.NodeData{"A4","A",84,"127.0.0.1","8080"}},
+    //    79:[]ConHash.NodeData{ConHash.NodeData{"A4","A",84,"127.0.0.1","8080"},ConHash.NodeData{"B4","B",89,"127.0.0.1","8081"}},
+    //    84:[]ConHash.NodeData{ConHash.NodeData{"B4","B",89,"127.0.0.1","8081"},ConHash.NodeData{"C4","C",94,"127.0.0.1","8082"}},
+    //    89:[]ConHash.NodeData{ConHash.NodeData{"C4","C",94,"127.0.0.1","8082"},ConHash.NodeData{"D4","D",99,"127.0.0.1","8083"}},
+    //    94:[]ConHash.NodeData{ConHash.NodeData{"D4","D",99,"127.0.0.1","8083"},ConHash.NodeData{"A0","A",4,"127.0.0.1","8080"}},
+    //    99:[]ConHash.NodeData{ConHash.NodeData{"A0","A",4,"127.0.0.1","8080"},ConHash.NodeData{"B0","B",9,"127.0.0.1","8081"}},
+    //}
+
     demoRing := &ConHash.Ring{
-        MaxID: MAXID,
+        MaxID: MAX_KEY,
         RingNodeDataArray:NodeDataArray,
-        NodePrefList:NodePrefList,
+        //NodePrefList:NodePrefList,
+        NodePrefList: map[int][]ConHash.NodeData{},
         ReplicationFactor: REPLICATIONFACTOR,
     }
+
+    demoRing.GenPrefList()
+
     fmt.Printf("Reloading Ring from memory: Ring is %v\n",demoRing)
 
     node.Ring = demoRing
