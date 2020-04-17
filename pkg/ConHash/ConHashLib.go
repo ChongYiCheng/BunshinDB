@@ -182,15 +182,16 @@ func (ring *Ring) AllocateKey(key string) (int,string,error){
 
 func (ring *Ring) GenPrefList(){
     nodeArray := ring.RingNodeDataArray
+    fmt.Println("Hello!")
     for i := 0 ; i < len(nodeArray) ; i++ {
         if nodeArray[i].ID != ""{
             // if node not empty, assign preference list
             ring.NodePrefList[i] = func(i int) []NodeData {
-                ret := make([]NodeData,ring.ReplicationFactor)
-                j := i + 1
+                ret := []NodeData{}
+                j := (i + 1) % ring.MaxID
                 for (j != i) {
                     if nodeArray[j].ID != "" && nodeArray[j].CName != nodeArray[i].CName{
-                        ret := append(ret,nodeArray[j])
+                        ret = append(ret,nodeArray[j])
                         if len(ret) == ring.ReplicationFactor{
                             return ret
                             }
