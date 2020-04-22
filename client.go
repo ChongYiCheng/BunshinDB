@@ -11,17 +11,20 @@ import (
     "bytes"
     "net"
     "errors"
+    "./pkg/ShoppingCart"
+	"math/rand"
+	"time"
+    //"./pkg/VectorClock"
+    //"./pkg/Item"
+    "io/ioutil"
     //"time"
 )
 
 type Message struct{
     SenderIP string
     SenderPort string
-    MessageType int
     Data map[string][]byte //Key-Value pair
     Query string //Just a key string for receiver to query
-    ResponseCode string //200,404 etc.
-    Timestamp []int //Vector Clock
 }
 
 type Client struct{
@@ -52,11 +55,59 @@ func (client *Client) HttpClientReq(msg *Message,targetUrl string,endpoint strin
 
     if err != nil {
          fmt.Println("Unable to reach the server.")
-    } else {
+    } else{
         var resMsg Message
 		json.NewDecoder(res.Body).Decode(&resMsg)
         fmt.Printf("Response Message is \n%v\n",resMsg)
+        msgData := map[string]ShoppingCart.ShoppingCart{}
+        if endpoint == "get" && len(msgData) > 1{
+            //TODO Need to add semantic reconciliation handling case
+            //Conflicting shopping cart versions, need to perform semantic reconciliation
+            //and write back to coordinator
+
+
+        } else{
+            for k,v := range resMsg.Data{
+                var shoppingCart ShoppingCart.ShoppingCart
+                unMarshalErr := json.Unmarshal(v,&shoppingCart)
+                if unMarshalErr != nil{
+                    fmt.Errorf("Failed to unmarshal message data")
+                }
+                msgData[k] = shoppingCart
+            }
+            fmt.Printf("Data of the message is \n%v\n",msgData)
+        }
     }
+}
+
+func (client *Client) semanticReconciliation(conflictedMessage Message){
+    //Need to collate list of conflicted shopping carts then merge them
+    listOfConflictingCarts := []ShoppingCart.ShoppingCart{}
+    msgData := conflictedMessage.Data
+    for _,v := range msgData{
+        var shoppingCart ShoppingCart.ShoppingCart
+        unMarshalErr := json.Unmarshal(v,&shoppingCart)
+        if unMarshalErr != nil{
+            fmt.Errorf("Failed to unmarshal message data")
+        }
+        listOfConflictingCarts = append(listOfConflictingCarts,shoppingCart)
+    }
+    reconciledCart := ShoppingCart.MergeShoppingCarts(listOfConflictingCarts)
+    key := reconciledCart.ShopperID
+    rawValue := reconciledCart
+    value, marshalErr := json.Marshal(rawValue)
+    if marshalErr != nil{
+        fmt.Errorf("Failed to marshal message")
+    }
+    data := map[string][]byte{key:value}
+    httpMsg := &Message{}
+    httpMsg.SenderIP = client.IP
+    httpMsg.SenderPort = client.Port
+    httpMsg.Data = data
+    fmt.Printf("httpMsg %s\n",httpMsg)
+    rand.Seed(time.Now().Unix())
+    targetUrl := client.KnownNodeURLs[rand.Intn(len(client.KnownNodeURLs))]
+    client.HttpClientReq(httpMsg,targetUrl,"put")
 }
 
 func externalIP() (string, error) {
@@ -189,8 +240,8 @@ get: Usage - get <key>
 query will send a key to a random DynamoDB Node and retrieves the key-value pair
 from the Coordinator Node 
 
-put: Usage - put <key> <value>
-put will send a key value pair to a random DyanmoDB Node and put it in the database
+put: Usage - put <json file>
+put will send a shopping cart structure to a random DyanmoDB Node and put it in the database
 under the Coordinator Node
 `)
 		case "get":
@@ -200,23 +251,33 @@ under the Coordinator Node
             httpMsg := &Message{}
             httpMsg.SenderIP = client.IP
             httpMsg.SenderPort = client.Port
-            httpMsg.MessageType = 0
             key := arrCommandStr[1]
             httpMsg.Query = key
             fmt.Printf("httpMsg %s\n",httpMsg)
-            targetUrl := client.KnownNodeURLs[0]
+			rand.Seed(time.Now().Unix())
+			targetUrl := client.KnownNodeURLs[rand.Intn(len(client.KnownNodeURLs))]
             client.HttpClientReq(httpMsg,targetUrl,"get")
 
         case "put":
-			if len(arrCommandStr)!=3{
-			   return fmt.Errorf("Usage of put - put <key> <value>")
+			if len(arrCommandStr)!=2{
+			   return fmt.Errorf("Usage of put - put <json file>")
 			}
 			httpMsg := &Message{}
 			httpMsg.SenderIP = client.IP
 			httpMsg.SenderPort = client.Port
-			httpMsg.MessageType = 1
-			key := arrCommandStr[1]
-			rawValue := arrCommandStr[2]
+            content, err := ioutil.ReadFile(arrCommandStr[1])
+            if err != nil{
+                fmt.Errorf("Error trying to read JSON file")
+            }
+
+            var shoppingCart ShoppingCart.ShoppingCart
+            unmarshalErr := json.Unmarshal(content, &shoppingCart)
+            if unmarshalErr != nil{
+                fmt.Errorf("Failed to unmarshal content from json file into a shopping cart")
+            }
+
+			key := shoppingCart.ShopperID
+			rawValue := shoppingCart
 			value, marshalErr := json.Marshal(rawValue)
             if marshalErr != nil{
                 fmt.Errorf("Failed to marshal message")
@@ -224,7 +285,8 @@ under the Coordinator Node
 			data := map[string][]byte{key:value}
 			httpMsg.Data = data
 			fmt.Printf("httpMsg %s\n",httpMsg)
-			targetUrl := client.KnownNodeURLs[0]
+			rand.Seed(time.Now().Unix())
+			targetUrl := client.KnownNodeURLs[rand.Intn(len(client.KnownNodeURLs))]
 			client.HttpClientReq(httpMsg,targetUrl,"put")
         default:
 		cmd := exec.Command(arrCommandStr[0], arrCommandStr[1:]...)
@@ -248,7 +310,8 @@ func main(){
     }
     port := os.Args[1]
     //Set constants here
-    KnownNodeUrls := []string{fmt.Sprintf("%s:8080",currentIP)}
+    //TODO need to know at least some of the members of the ring somehow
+    KnownNodeUrls := []string{fmt.Sprintf("%s:8080",currentIP),fmt.Sprintf("%s:8081",currentIP),fmt.Sprintf("%s:8082",currentIP),fmt.Sprintf("%s:8083",currentIP)}
 
     client := &Client{currentIP,port,KnownNodeUrls}
 
