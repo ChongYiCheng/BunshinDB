@@ -15,6 +15,7 @@ type Node struct{
 	//nodeChannel chan interface{}
 	DBPath string // e.g /tmp/badger
 	NodeDB *badger.DB
+	HHQueue *badger.DB // added by yc to test hintedhandoff
 	IP string //a.b.c.d:port
 	Port string
 	//allNodes map[int]string

@@ -16,6 +16,7 @@ import (
     glog "github.com/golang/glog"
     "strconv"
     "./ConHash"
+    //"time"
 )
 
 
@@ -32,7 +33,7 @@ type Message struct{
 type Node struct{
     ConHash.Node
     ResponseChannel chan interface{}
-    TimeoutChannel chan interface{} 
+    TimeoutChannel chan interface{}
 }
 
 type Ring struct{
@@ -53,7 +54,10 @@ func (node *Node) Start(){
     handle(err)
     defer db.Close()
     node.NodeDB = db
-
+    hhQueue , hhErr := badger.Open(badger.DefaultOptions(node.DBPath+"/hhQueue"))
+    node.HHQueue = hhQueue
+    handle(hhErr)
+    defer hhQueue.Close()
     node.HttpServerStart()
 }
 
@@ -72,7 +76,9 @@ func (node *Node) HttpServerStart(){
 	http.HandleFunc("/put", node.PutHandler)
 	http.HandleFunc("/new-ring", node.NewRingHandler)
 	http.HandleFunc("/get-node", node.GetNodeHandler)
-	http.HandleFunc("/hb", node.HeartbeatHandler)
+    http.HandleFunc("/hb", node.HeartbeatHandler)
+    //Send hintedhandoff to right node
+    //http.HandleFunc("/hh-send", node.HHHandler)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s",node.Port), nil))
 }
 
@@ -127,7 +133,6 @@ func (node *Node) GetHandler(w http.ResponseWriter, r *http.Request) {
     }
 }
 
-
 func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
     fmt.Println("Put Handler activated")
     var msg *Message
@@ -169,7 +174,7 @@ func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
             //Need to relay put request to appropriate node
             //dstNodeData := ring.RingNodeDataArray[dstNodeHash]
             //dstNodeIPPort := dstNodeUrl
-
+            fmt.Println("Relaying msg to appropriate node")
             node.HttpClientReq(msg,dstNodeUrl,"put")
             relayResponse := <-node.ResponseChannel
             relayResponseMsg := relayResponse.(Message)
@@ -220,7 +225,56 @@ func (node *Node) HeartbeatHandler(w http.ResponseWriter, r *http.Request) {
     w.WriteHeader(http.StatusOK) //Set response code to 200
     fmt.Fprintf(w,"") //Just send a blank reply at least the server knows you're reachable 
 }
+func (node *Node) HHHandler(w http.ResponseWriter, r *http.Request) {
+    //Hinted Handoff Handler
+    fmt.Println("HintedHandoff Handler activated")
+    var msg *Message
 
+    w.Header().Set("Content-Type", "application/json")
+    if r.Body == nil {
+        http.Error(w, "Please send a request body", 400)
+        return
+    }
+
+    err := json.NewDecoder(r.Body).Decode(&msg)
+    if err != nil {
+        http.Error(w, err.Error(), 400)
+        return
+    }
+    msgData := msg.Data
+    ring := node.Ring
+    fmt.Println("HH Handler - Allocating Key")
+    for key, _ := range msgData{
+        dstNodeHash, dstNodeUrl , AllocErr := ring.AllocateKey(key) //Get the destination node of this key
+        if AllocErr != nil{
+            fmt.Println("Failed to allocate node to key [%s]",key)
+        }
+        if contains(node.NodeRingPositions,dstNodeHash){ //If this node is responsible 
+            fmt.Println("HintedHandoff Handler - Updating Database with Key Value pair")
+            var responseStatus string
+            err := node.UpdateDB(msgData)
+            if err != nil{
+                responseStatus = "404"
+            } else {
+                responseStatus = "200"
+            }
+            responseMessage := &Message{
+                SenderIP:node.IP,SenderPort:node.Port,Data:msgData,
+                ResponseCode:responseStatus,Timestamp:[]int{},
+            }
+            json.NewEncoder(w).Encode(responseMessage)
+        } else{
+            //Need to relay put request to appropriate node
+            //dstNodeData := ring.RingNodeDataArray[dstNodeHash]
+            //dstNodeIPPort := dstNodeUrl
+            fmt.Println("Hintedhandoff - Relaying msg to appropriate node")
+            node.HttpClientReq(msg,dstNodeUrl,"hh-send")
+            relayResponse := <-node.ResponseChannel
+            relayResponseMsg := relayResponse.(Message)
+            json.NewEncoder(w).Encode(relayResponseMsg)
+        }
+    }
+} 
 func (node *Node) handleMessage(m *Message) *Message{
     switch m.MessageType{
     case 0:
@@ -263,15 +317,23 @@ func (node *Node) HttpClientReq(msg *Message,targetUrl string,endpoint string){
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonBuffer))
     req.Header.Set("Content-Type", "application/json")
 
+    fmt.Printf("Message: %v, targetURL: %s, endpoint: %s\n",msg,targetUrl,endpoint)
     res, err := client.Do(req)
-    defer res.Body.Close()
-    fmt.Println("HTTP Client Req - Got a response")
-
+    //defer res.Body.Close()
+    fmt.Println(err)
     // always close the response-body, even if content is not required
-
     if err != nil {
-         fmt.Println("Unable to reach the server.")
-    } else {
+        fmt.Println("Unable to reach the server.")
+        if endpoint == "put"{
+            fmt.Println("Commencing hinted handoff")
+            node.UpdateHH(msg.Data)
+            node.CheckHH()
+            //node.ViewHH()
+        }
+
+    }else{
+        fmt.Println("HTTP Client Req - Got a response")
+        defer res.Body.Close()
         var resMsg Message
 		json.NewDecoder(res.Body).Decode(&resMsg)
         fmt.Printf("Response Message is \n%v\n",resMsg)
@@ -288,8 +350,6 @@ func (node *Node) HttpClientReq(msg *Message,targetUrl string,endpoint string){
         //}
     }
 }
-
-
 
 func (node *Node) UpdateDB(update map[string][]byte) error{
     db := node.NodeDB
@@ -415,6 +475,186 @@ func externalIP() (string, error) {
 		}
 	}
 	return "", errors.New("are you connected to the network?")
+}
+func (node *Node) CheckHH(){
+    //Think about how to check through the hinted handoff db
+    hhMap := node.HHDBtoMap()
+    ring := node.Ring
+    //Iterate through hhmap
+    for key, _ := range hhMap{
+        fmt.Printf("HH Key: %s\n",key)
+        fmt.Println("HH Handler - Allocating Key")
+        dstNodeHash, dstNodeUrl , AllocErr := ring.AllocateKey(key) //Get the destination node of this key
+        if AllocErr != nil{
+            fmt.Println("Failed to allocate node to key [%s]",key)
+        }
+        if contains(node.NodeRingPositions,dstNodeHash){ //If this node is responsible 
+            fmt.Println("HintedHandoff Handler - Updating Database with Key Value pair")
+            fmt.Printf("Key: %s, Value %s\n",key,hhMap[key])
+            // var responseStatus string
+            fmt.Printf("Key: %s, Value %s\n",key,hhMap[key])
+            update := map[string][]byte{key:hhMap[key]}
+            err := node.UpdateDB(update)
+            if err != nil{
+                //error
+                fmt.Println("Error: Unable to update database due to %v\n",err) 
+            }else{
+                fmt.Println("Success in putting hintedhandoff - Proceed to remove from HHDB")
+                node.DeleteHHKey(key)
+            // }
+            // responseMessage := &Message{
+            //     SenderIP:node.IP,SenderPort:node.Port,Data:msgData,
+            //     ResponseCode:responseStatus,Timestamp:[]int{},
+            // }
+            // json.NewEncoder(w).Encode(responseMessage)
+            }
+        }else{
+            //Need to relay put request to appropriate node
+            //dstNodeData := ring.RingNodeDataArray[dstNodeHash]
+            //dstNodeIPPort := dstNodeUrl
+            fmt.Printf("Hintedhandoff - Relaying msg to appropriate node: %s\n",dstNodeUrl)
+            // dstNodeURLSplit := strings.Split(dstNodeUrl,":")
+            // destIP := dstNodeURLSplit[0]
+            // destPort := dstNodeURLSplit[1]
+            fmt.Printf("Key: %s, Value %s\n",key,hhMap[key])
+            update := map[string][]byte{key:value}
+            fmt.Printf("KeyValuePair to be relayed for HH: %v\n",update)
+            //node.UpdateDB(update)
+            // node.HttpClientReq(msg,dstNodeUrl,"hh-send")
+            // relayResponse := <-node.ResponseChannel
+            // relayResponseMsg := relayResponse.(Message)
+            // json.NewEncoder(w).Encode(relayResponseMsg)
+        }
+        
+    }
+    // httpMsg := &Message{}
+    // httpMsg.SenderIP = node.IP
+    // httpMsg.SenderPort = node.Port
+    // httpMsg.MessageType = 1
+    // key := arrCommandStr[3]
+    // rawValue := arrCommandStr[4]
+    // value, marshalErr := json.Marshal(rawValue)
+    // handle(marshalErr)
+    // data := map[string][]byte{key:value}
+    // httpMsg.Data = data
+    // fmt.Printf("httpMsg %s\n",httpMsg)
+    // targetUrl := fmt.Sprintf("%s:%s",arrCommandStr[1],arrCommandStr[2])
+    // node.HttpClientReq(httpMsg,targetUrl,"put")
+}
+
+func (node *Node) HHDBtoMap() map[string][]byte {
+    db := node.HHQueue
+    hhQueue := make(map[string][]byte)
+    err := db.View(func(txn *badger.Txn) error {
+        opts := badger.DefaultIteratorOptions
+        opts.PrefetchSize = 10
+        it := txn.NewIterator(opts)
+        defer it.Close()
+        for it.Rewind(); it.Valid(); it.Next() {
+        item := it.Item()
+        k := item.Key()
+        err := item.Value(func(v []byte) error {
+            //fmt.Printf("key=%s, value=%s\n", k, v)
+            hhQueue[string(k)] = v
+            return nil
+        })
+        if err != nil {
+            return err
+        }
+        }
+        return nil
+    })
+    handle(err)
+    return hhQueue
+}
+
+func (node *Node) UpdateHH(update map[string][]byte) error{
+    db := node.HHQueue
+    txn := db.NewTransaction(true)
+    for k,v := range update{
+      if err := txn.Set([]byte(k),[]byte(v)); err == badger.ErrTxnTooBig {
+        _ = txn.Commit()
+        txn = db.NewTransaction(true)
+        _ = txn.Set([]byte(k),[]byte(v))
+      }
+    }
+    err := txn.Commit()
+    return err
+}
+
+func (node *Node) ViewHH(){
+    db := node.HHQueue
+	err := db.View(func(txn *badger.Txn) error {
+	  opts := badger.DefaultIteratorOptions
+	  opts.PrefetchSize = 10
+	  it := txn.NewIterator(opts)
+	  defer it.Close()
+	  for it.Rewind(); it.Valid(); it.Next() {
+	    item := it.Item()
+	    k := item.Key()
+	    err := item.Value(func(v []byte) error {
+	      fmt.Printf("key=%s, value=%s\n", k, v)
+	      return nil
+	    })
+	    if err != nil {
+	      return err
+	    }
+	  }
+	  return nil
+	})
+    handle(err)
+}
+
+
+func (node *Node) QueryHH(queryKey string) (map[string][]byte,error){
+	var outputVal []byte
+    var valCopy []byte
+    db := node.HHQueue
+	err := db.View(func(txn *badger.Txn) error {
+	item, err := txn.Get([]byte(queryKey))
+    if err!=nil{
+        glog.Error(err)
+	    return err
+    }
+
+	//var valCopy []byte
+	err = item.Value(func(val []byte) error {
+	// This func with val would only be called if item.Value encounters no error.
+
+	// Copying or parsing val is valid.
+	valCopy = append([]byte{}, val...)
+
+	return nil
+	})
+
+    if err!=nil{
+        glog.Error(err)
+	    return err
+    }
+
+	// You must copy it to use it outside item.Value(...).
+	fmt.Printf("The answer is: %s\n", valCopy)
+
+	return nil
+	})
+
+    outputVal = valCopy
+    output := make(map[string][]byte)
+    output[queryKey]=outputVal
+	return output, err
+}
+
+func (node *Node) DeleteHHKey(Key string) error{
+    db := node.HHQueue
+	err := db.Update(func(txn *badger.Txn) error {
+	err := txn.Delete([]byte(Key))
+	if err!=nil{
+        return err
+    }
+
+	return nil
+	})
+    return err
 }
 
 func parseCommandLine(command string) ([]string, error) {
@@ -685,7 +925,6 @@ func main(){
     
 
     fmt.Printf("HardCoded NodeDataArray is %v\n",NodeDataArray)
-
 
     NodePrefList := map[int][]ConHash.NodeData{
         1:[]ConHash.NodeData{ConHash.NodeData{"B0","B",11,"127.0.0.1","8081"}},
