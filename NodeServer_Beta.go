@@ -15,24 +15,23 @@ import (
     "errors"
     glog "github.com/golang/glog"
     "strconv"
-    "./ConHash"
+    "./pkg/ConHash"
+    "./pkg/ShoppingCart"
 )
 
 
 type Message struct{
     SenderIP string
     SenderPort string
-    MessageType int
     Data map[string][]byte //Key-Value pair
     Query string //Just a key string for receiver to query
-    ResponseCode string //200,404 etc.
-    Timestamp []int //Vector Clock
+    //ResponseCode string //200,404 etc.
 }
 
 type Node struct{
     ConHash.Node
-    ResponseChannel chan interface{}
-    TimeoutChannel chan interface{} 
+    //ResponseChannel chan interface{}
+    //TimeoutChannel chan interface{} 
 }
 
 type Ring struct{
@@ -60,6 +59,15 @@ func (node *Node) Start(){
 func contains(s []int, e int) bool {
     for _, a := range s {
         if a == e {
+            return true
+        }
+    }
+    return false
+}
+
+func InPrefList(prefList []ConHash.NodeData, nodeIP string, nodePort string) bool{
+    for _,nodeData := range prefList{
+        if (nodeIP == nodeData.IP && nodePort == nodeData.Port){
             return true
         }
     }
@@ -100,8 +108,13 @@ func (node *Node) GetHandler(w http.ResponseWriter, r *http.Request) {
         fmt.Println("Failed to allocate node to key [%s]",query)
     }
 
-    if contains(node.NodeRingPositions,dstNodeHash){ //If this node is responsible 
-        fmt.Println("Get Handler - Retrieving Key Value pair and sending it back to client")
+    //TODO Allow Nodes to check if they're in the Coordinator Node's pref list
+    //If so, let them retrieve the item from their database
+    if (contains(node.NodeRingPositions,dstNodeHash) || InPrefList(ring.NodePrefList[dstNodeHash],node.IP,node.Port)){ //If this node is responsible 
+        fmt.Println("This Node is Coordinator or inPrefList")
+
+        //First, try to retrieve the data from the databaseFirst, try to retrieve the data from the database
+        fmt.Println("Get Handler - Retrieving Key Value pair and sending it back to Requestor")
         var responseStatus string
         queryResponse, err := node.QueryDB(query)
         if err != nil{
@@ -109,20 +122,108 @@ func (node *Node) GetHandler(w http.ResponseWriter, r *http.Request) {
         } else {
             responseStatus = "200"
         }
-        responseMessage := &Message{
-            SenderIP:node.IP,SenderPort:node.Port,Data:queryResponse,
-            ResponseCode:responseStatus,Timestamp:[]int{},
+        //TODO Need to Implement R mechanism here
+        if ((ring.RingNodeDataArray[dstNodeHash].IP == msg.SenderIP && ring.RingNodeDataArray[dstNodeHash].Port == msg.SenderPort) ||
+        InPrefList(ring.NodePrefList[dstNodeHash],msg.SenderIP,msg.SenderPort)){
+            //If this request is due to the R process
+            fmt.Println("This Node is responding to a R broadcast")
+            responseMessage := &Message{
+                SenderIP:node.IP,SenderPort:node.Port,Data:queryResponse,
+            }
+            if responseStatus == "404"{
+                http.Error(w,http.StatusText(http.StatusNotFound),http.StatusNotFound)
+            }
+            json.NewEncoder(w).Encode(responseMessage)
+        } else{
+            //This node has to take initiative to start the R process.
+            fmt.Println("This Node is initiating an R broadcast")
+            otherReplicas := []ConHash.NodeData{}
+
+            otherReplicas = append(otherReplicas,ring.RingNodeDataArray[dstNodeHash])
+            otherReplicas = append(otherReplicas,ring.NodePrefList[dstNodeHash]...)
+
+            shoppingCartVersions := []ShoppingCart.ShoppingCart{}
+            if err == nil{
+                var nodeShoppingCartVersion ShoppingCart.ShoppingCart
+                nodeShoppingCartBytes := queryResponse[msg.Query]
+                json.Unmarshal(nodeShoppingCartBytes,&nodeShoppingCartVersion)
+                shoppingCartVersions = append(shoppingCartVersions,nodeShoppingCartVersion)
+            }
+            rChannel := make(chan Message)
+
+            //Ask Replicas to send their version of the shoppingcart 
+            rMessage := &Message{
+                SenderIP:node.IP,SenderPort:node.Port,Query:msg.Query,
+            }
+            for _,replicaNodeData := range otherReplicas{
+                if replicaNodeData.CName != node.CName{
+                    go func(rData ConHash.NodeData){
+                        replicaNodeDataUrl := fmt.Sprintf("%s:%s",rData.IP,rData.Port)
+                        fmt.Printf("Debugging replica url %s\n",replicaNodeDataUrl)
+                        node.HttpClientReq(rMessage,replicaNodeDataUrl,"get",rChannel)
+                        responseMessage := <-rChannel
+                        if len(shoppingCartVersions) < ring.RWFactor{
+                            //Convert bytes in data to shopping cart structure
+                            data := responseMessage.Data
+                            shoppingCartBytes := data[msg.Query]
+                            var shoppingCart ShoppingCart.ShoppingCart
+                            json.Unmarshal(shoppingCartBytes,&shoppingCart)
+                            //json.NewDecoder(shoppingCartBytes).Decode(&shoppingCart)
+                            shoppingCartVersions = append(shoppingCartVersions,shoppingCart)
+                        } else{
+                            // Do nothing :')
+                        }
+                    }(replicaNodeData)
+                }
+            }
+            //close(rChannel)
+            //Reconcile differences
+            listOfConflictingShoppingCarts := ShoppingCart.CompareShoppingCarts(shoppingCartVersions)
+            //If reconciliation is successful
+            if len(listOfConflictingShoppingCarts)== 1{
+                //Return the best version to client
+                reconciledCartJson, marshalErr := json.Marshal(listOfConflictingShoppingCarts[0])
+                if marshalErr != nil{
+                    fmt.Errorf("Failed to marshal shopping cart")
+                }
+                responseData := map[string][]byte{msg.Query:[]byte(reconciledCartJson)}
+                responseMessage := &Message{
+                    SenderIP:node.IP,SenderPort:node.Port,Data:responseData,
+                }
+                json.NewEncoder(w).Encode(responseMessage)
+            //queryResponse,err :=
+            } else if len(listOfConflictingShoppingCarts) > 1{
+                //There are multiple conflicting versions of the shopping cart
+                //Need to let the Client know somehow maybe with multiple key val pairs?
+                responseData := map[string][]byte{}
+                for i,shoppingCart := range listOfConflictingShoppingCarts{
+                    key := strconv.Itoa(i)
+                    conflictingCartJson, marshalErr := json.Marshal(shoppingCart)
+                    if marshalErr != nil{
+                        fmt.Errorf("Failed to marshal shopping cart")
+                    }
+                    responseData[key] = []byte(conflictingCartJson)
+                }
+                responseMessage := &Message{
+                    SenderIP:node.IP,SenderPort:node.Port,Data:responseData,
+                }
+                json.NewEncoder(w).Encode(responseMessage)
+            } else{
+                //None of the replicas have this data so return 404
+                http.Error(w,http.StatusText(http.StatusNotFound),http.StatusNotFound)
+            }
         }
-        json.NewEncoder(w).Encode(responseMessage)
     } else{
         fmt.Println("Get Handler - Relaying Key to the Coordinator Node")
+        // TODO Implement a fallback mechanism if Coordinator Node is not alive
+
         //Need to relay get request to appropriate node
-		//dstNodeData := ring.RingNodeDataArray[dstNodeHash]
-        //dstNodeIPPort := fmt.Sprintf("%s:%s",dstNodeData.IP,dstNodeData.Port)
-        node.HttpClientReq(msg,dstNodeUrl,"get")
+        rChannel := make(chan Message)
+        node.HttpClientReq(msg,dstNodeUrl,"get",rChannel)
         fmt.Println("Get Handler - Returning relayed message to client")
-        responseMessage := <-node.ResponseChannel
+        responseMessage := <-rChannel
         fmt.Println("Received Relayed Msg from Coordinator Node")
+        close(rChannel)
         json.NewEncoder(w).Encode(responseMessage)
     }
 }
@@ -150,36 +251,117 @@ func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
         dstNodeHash, dstNodeUrl , AllocErr := ring.AllocateKey(key) //Get the destination node of this key
         if AllocErr != nil{
             fmt.Println("Failed to allocate node to key [%s]",key)
+            http.Error(w, err.Error(), 400)
+            return
         }
-        if contains(node.NodeRingPositions,dstNodeHash){ //If this node is responsible 
-            fmt.Println("Put Handler - Updating Database with Key Value pair")
-            var responseStatus string
-            err := node.UpdateDB(msgData)
-            if err != nil{
-                responseStatus = "404"
-            } else {
-                responseStatus = "200"
+        //TODO Allow Nodes to check if they're in the Coordinator Node's pref list
+        //If so, let them retrieve the item from their database
+        if (contains(node.NodeRingPositions,dstNodeHash) || InPrefList(ring.NodePrefList[dstNodeHash],node.IP,node.Port)){ //If this node is responsible 
+            fmt.Println("Node is Coordinator/InPrefList")
+
+            //First, try to retrieve the data from the databaseFirst, try to retrieve the data from the database
+            //fmt.Println("Get Handler - Retrieving Key Value pair and sending it back to Requestor")
+            //TODO Need to Implement W mechanism here
+            if ((ring.RingNodeDataArray[dstNodeHash].IP == msg.SenderIP && ring.RingNodeDataArray[dstNodeHash].Port == msg.SenderPort) ||
+            InPrefList(ring.NodePrefList[dstNodeHash],msg.SenderIP,msg.SenderPort)){
+                fmt.Printf("Node %s is responding to a W broadcast by %s:%s\n",node.CName,msg.SenderIP,msg.SenderPort)
+                //If this request is due to the W process started by a coordinator
+                updateErr := node.UpdateDB(msgData)
+                var responseStatus string
+                if updateErr != nil{
+                    responseStatus = "400"
+                } else {
+                    responseStatus = "200"
+                }
+                responseMessage := &Message{
+                    SenderIP:node.IP,SenderPort:node.Port,Data:msgData,
+                }
+                if responseStatus == "400"{
+                    http.Error(w, http.StatusText(http.StatusBadRequest),http.StatusBadRequest)
+                } else{
+                    json.NewEncoder(w).Encode(responseMessage)
+                }
+            } else{
+                fmt.Println("Node is initiating W process")
+                fmt.Println("This is because the msg was sent by %s:%s\n",msg.SenderIP,msg.SenderPort)
+                //This node has to take initiative to start the W process.
+                //var responseStatus string
+                //We need to convert the data back to a shopping cart structure
+                var clientShoppingCart ShoppingCart.ShoppingCart
+                json.Unmarshal(msgData[key],&clientShoppingCart)
+                //Afterwards, update the version in the client shopping cart
+                clientShoppingCart.Version = ShoppingCart.UpdateVersion(clientShoppingCart.Version,node.CName)
+                //After that we can finally update our own database and write to the other nodes
+                //Convert shopping cart back to bytes
+                clientCartBytes,marshalErr := json.Marshal(clientShoppingCart)
+                if marshalErr != nil{
+                    fmt.Errorf("Failed to Marshal client cart")
+                    http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+                    return
+                }
+                cartData := map[string][]byte{key:[]byte(clientCartBytes)}
+                updateErr := node.UpdateDB(cartData)
+                if updateErr != nil{
+                    http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+                    return
+                }
+                writeMsg := &Message{
+                    SenderIP:node.IP,SenderPort:node.Port,Data:cartData,
+                }
+                otherReplicas := []ConHash.NodeData{}
+
+
+                otherReplicas = append(otherReplicas,ring.RingNodeDataArray[dstNodeHash])
+                otherReplicas = append(otherReplicas,ring.NodePrefList[dstNodeHash]...)
+                var successfulReplications = 0
+                var repPointer = &successfulReplications
+
+                wChannel := make(chan Message)
+
+                for _,replicaNodeData := range otherReplicas{
+                    if replicaNodeData.CName != node.CName{
+                        //Need to pay attention to this when debugging
+                        go func(rData ConHash.NodeData, replicationPointer *int) {
+                            replicaNodeDataUrl := fmt.Sprintf("%s:%s",rData.IP,rData.Port)
+                            node.HttpClientReq(writeMsg,replicaNodeDataUrl,"put",wChannel)
+                            <-wChannel
+                            *replicationPointer = *replicationPointer + 1
+                        }(replicaNodeData,repPointer)
+                    }
+                }
+                //close(wChannel)
+                if successfulReplications >= ring.RWFactor{
+                    //Write is successful
+                    responseMessage := &Message{
+                        SenderIP:node.IP,SenderPort:node.Port,Data:cartData,
+                    }
+                    w.WriteHeader(http.StatusOK)
+                    json.NewEncoder(w).Encode(responseMessage)
+                } else{
+                    //Return 501 code because Server failed to complete write (which means alot of failures in DB)
+                    http.Error(w, http.StatusText(http.StatusNotImplemented), http.StatusNotImplemented)
+                }
             }
-            responseMessage := &Message{
-                SenderIP:node.IP,SenderPort:node.Port,Data:msgData,
-                ResponseCode:responseStatus,Timestamp:[]int{},
-            }
-            json.NewEncoder(w).Encode(responseMessage)
         } else{
+            fmt.Println("Node is relaying client request to Coordinator")
             //Need to relay put request to appropriate node
+
+            //TODO In case appropriate node fails, check pref list and send to secondary
+
             //dstNodeData := ring.RingNodeDataArray[dstNodeHash]
             //dstNodeIPPort := dstNodeUrl
+            rChannel := make(chan Message)
 
-            node.HttpClientReq(msg,dstNodeUrl,"put")
-            relayResponse := <-node.ResponseChannel
-            relayResponseMsg := relayResponse.(Message)
+            node.HttpClientReq(msg,dstNodeUrl,"put",rChannel)
+            relayResponseMsg := <-rChannel
+            close(rChannel)
             json.NewEncoder(w).Encode(relayResponseMsg)
         }
     }
 }
 
 func (node *Node) NewRingHandler(w http.ResponseWriter, r *http.Request) {
-    //To-Do update ring
+    //TODO update ring
     //Need a onUpdateRing function in conHash.go
 }
 
@@ -210,7 +392,6 @@ func (node *Node) GetNodeHandler(w http.ResponseWriter, r *http.Request) {
     responseData["nodeUrl"]=[]byte(dstNodeUrl)
     responseMessage := &Message{
         SenderIP:node.IP,SenderPort:node.Port,Data:responseData,
-        ResponseCode:"200",Timestamp:[]int{},
     }
     fmt.Println(responseMessage)
     json.NewEncoder(w).Encode(responseMessage)
@@ -221,43 +402,15 @@ func (node *Node) HeartbeatHandler(w http.ResponseWriter, r *http.Request) {
     fmt.Fprintf(w,"") //Just send a blank reply at least the server knows you're reachable 
 }
 
-func (node *Node) handleMessage(m *Message) *Message{
-    switch m.MessageType{
-    case 0:
-        //If Message type is GET
-        var responseStatus string
-        query := m.Query
-        queryResponse, err := node.QueryDB(query)
-        if err != nil{
-            responseStatus = "404"
-        } else {
-            responseStatus = "200"
-        }
-        responseMessage := &Message{
-            SenderIP:node.IP,SenderPort:node.Port,Data:queryResponse,
-            ResponseCode:responseStatus,Timestamp:[]int{},
-        }
-        return responseMessage
-    case 1:
-        // If Message is to PUT
-        data := m.Data
-        node.UpdateDB(data)
-        responseMessage := &Message{
-            SenderIP:node.IP,SenderPort:node.Port,
-            ResponseCode:"200",Timestamp:[]int{},
-        }
-        return responseMessage
-    }
-    return nil
-}
 
-func (node *Node) HttpClientReq(msg *Message,targetUrl string,endpoint string){
+
+//Think of passing in a channel as an argument to prevent potential
+//mixed usage of the same channel
+func (node *Node) HttpClientReq(msg *Message,targetUrl string,endpoint string, relayChannel chan Message){
 	client := &http.Client{
 	}
     fmt.Println("HTTP Client Req function called")
-
     url := fmt.Sprintf("http://%s/%s",targetUrl,endpoint)
-    fmt.Println(msg)
 
     jsonBuffer, err := json.Marshal(msg)
     handle(err)
@@ -274,20 +427,12 @@ func (node *Node) HttpClientReq(msg *Message,targetUrl string,endpoint string){
     if err != nil {
          fmt.Println("Unable to reach the server.")
     } else {
-        var resMsg Message
-		json.NewDecoder(res.Body).Decode(&resMsg)
-        fmt.Printf("Response Message is \n%v\n",resMsg)
-        go func(){
-            node.ResponseChannel <- resMsg
-        }()
-        //select{
-        //case node.ResponseChannel <- resMsg:
-        //    fmt.Println("Hello hello my name's dibo")
-        //        // Do nothing
-        //case <- time.After(100 * time.Millisecond):
-        //    fmt.Println("Hello hello my name's nobo")
-        //    //Do nothing
-        //}
+        if res.StatusCode == 200{
+            var resMsg Message
+            json.NewDecoder(res.Body).Decode(&resMsg)
+            fmt.Printf("Response Message is \n%v\n",resMsg)
+                relayChannel <- resMsg
+        }
     }
 }
 
@@ -593,7 +738,6 @@ address and port
 			httpMsg := &Message{}
 			httpMsg.SenderIP = node.IP
 			httpMsg.SenderPort = node.Port
-			httpMsg.MessageType = 1
             key := arrCommandStr[3]
             rawValue := arrCommandStr[4]
             value, marshalErr := json.Marshal(rawValue)
@@ -602,7 +746,10 @@ address and port
 			httpMsg.Data = data
             fmt.Printf("httpMsg %s\n",httpMsg)
             targetUrl := fmt.Sprintf("%s:%s",arrCommandStr[1],arrCommandStr[2])
-            node.HttpClientReq(httpMsg,targetUrl,"put")
+            rChannel := make(chan Message)
+            node.HttpClientReq(httpMsg,targetUrl,"put",rChannel)
+            <-rChannel
+            close(rChannel)
         case "httpGet":
             if len(arrCommandStr)!=4{
                 return fmt.Errorf("Usage of httpGet - httpGet <targetIP> <targetPort> <key to query>")
@@ -610,12 +757,14 @@ address and port
             httpMsg := &Message{}
             httpMsg.SenderIP = node.IP
             httpMsg.SenderPort = node.Port
-            httpMsg.MessageType = 0
             key := arrCommandStr[3]
             httpMsg.Query = key
             fmt.Printf("httpMsg %s\n",httpMsg)
             targetUrl := fmt.Sprintf("%s:%s",arrCommandStr[1],arrCommandStr[2])
-            node.HttpClientReq(httpMsg,targetUrl,"get")
+            rChannel := make(chan Message)
+            node.HttpClientReq(httpMsg,targetUrl,"get",rChannel)
+            <-rChannel
+            close(rChannel)
         case "httpGetNode":
             if len(arrCommandStr)!=4{
                 return fmt.Errorf("Usage of httpGetNode - httpGetNode <targetIP> <targetPort> <key to query>")
@@ -623,12 +772,14 @@ address and port
             httpMsg := &Message{}
             httpMsg.SenderIP = node.IP
             httpMsg.SenderPort = node.Port
-            httpMsg.MessageType = 0
             key := arrCommandStr[3]
             httpMsg.Query = key
             fmt.Printf("httpMsg %s\n",httpMsg)
             targetUrl := fmt.Sprintf("%s:%s",arrCommandStr[1],arrCommandStr[2])
-            node.HttpClientReq(httpMsg,targetUrl,"get-node")
+            rChannel := make(chan Message)
+            node.HttpClientReq(httpMsg,targetUrl,"get-node",rChannel)
+            <-rChannel
+            close(rChannel)
         default:
 		cmd := exec.Command(arrCommandStr[0], arrCommandStr[1:]...)
 		cmd.Stderr = os.Stderr
@@ -647,12 +798,15 @@ func main(){
         os.Exit(0)
     }
 	//Set constants here
-	const NUMBER_OF_VNODES = 3;
+	const NUMBER_OF_VNODES = 4;
 	const MAX_KEY = 100;
     const REPLICATION_FACTOR = 3;
+    const RW_FACTOR = 1;
 
     currentIP, err := externalIP()
     fmt.Printf("Setting Node's IP to be %s\n",currentIP)
+    //TODO REMOVE THIS ONCE LIONEL'S RING SERVER FUNCTION WORKS
+    currentIP = "127.0.0.1"
     handle(err)
     port := os.Args[1]
     DBPath := os.Args[2]
@@ -661,17 +815,64 @@ func main(){
     if strconverr != nil{
         fmt.Errorf("Failed to convert NodeNumID to int. Please enter an integer")
     }
+    fmt.Println("Testing 1")
 
-    ring := ConHash.NewRing(MAX_KEY,REPLICATION_FACTOR)
+    ring := ConHash.NewRing(MAX_KEY,REPLICATION_FACTOR,RW_FACTOR)
 	conNode := ConHash.NewNode(NodeNumID, NUMBER_OF_VNODES,DBPath,currentIP,port,ring)
-    nodeResponseChannel := make(chan interface{})
-    nodeTimeoutChannel := make(chan interface{})
-    node := Node{conNode,nodeResponseChannel,nodeTimeoutChannel}
+    node := Node{conNode}
 	//should with assign the ring to node.ring only when we register with ring?
-	node.RegisterWithRing(node.Ring)
+	//node.RegisterWithRing(node.Ring)
+    //For demo purposes, gonna hard code a ring
+    //const MAXID = 100
+    const REPLICATIONFACTOR = 3
+    NodeDataArray := make([]ConHash.NodeData,MAX_KEY,MAX_KEY)
+    fmt.Println("Hello")
+
+    NodeDataArray[4] = ConHash.NodeData{"A0","A",4,"127.0.0.1","8080"}
+    NodeDataArray[9] = ConHash.NodeData{"B0","B",9,"127.0.0.1","8081"}
+    NodeDataArray[14] = ConHash.NodeData{"C0","C",14,"127.0.0.1","8082"}
+    NodeDataArray[19] = ConHash.NodeData{"D0","D",19,"127.0.0.1","8083"}
+    NodeDataArray[24] = ConHash.NodeData{"A1","A",24,"127.0.0.1","8080"}
+    NodeDataArray[29] = ConHash.NodeData{"B1","B",29,"127.0.0.1","8081"}
+    NodeDataArray[34] = ConHash.NodeData{"C1","C",34,"127.0.0.1","8082"}
+    NodeDataArray[39] = ConHash.NodeData{"D1","D",39,"127.0.0.1","8083"}
+    NodeDataArray[44] = ConHash.NodeData{"A2","A",44,"127.0.0.1","8080"}
+    NodeDataArray[49] = ConHash.NodeData{"B2","B",49,"127.0.0.1","8081"}
+    NodeDataArray[54] = ConHash.NodeData{"C2","C",54,"127.0.0.1","8082"}
+    NodeDataArray[59] = ConHash.NodeData{"D2","D",59,"127.0.0.1","8083"}
+    NodeDataArray[64] = ConHash.NodeData{"A3","A",64,"127.0.0.1","8080"}
+    NodeDataArray[69] = ConHash.NodeData{"B3","B",69,"127.0.0.1","8081"}
+    NodeDataArray[74] = ConHash.NodeData{"C3","C",74,"127.0.0.1","8082"}
+    NodeDataArray[79] = ConHash.NodeData{"D3","D",79,"127.0.0.1","8083"}
+    NodeDataArray[84] = ConHash.NodeData{"A4","A",84,"127.0.0.1","8080"}
+    NodeDataArray[89] = ConHash.NodeData{"B4","B",89,"127.0.0.1","8081"}
+    NodeDataArray[94] = ConHash.NodeData{"C4","C",94,"127.0.0.1","8082"}
+    NodeDataArray[99] = ConHash.NodeData{"D4","D",99,"127.0.0.1","8083"}
+
+    demoRing := &ConHash.Ring{
+        MaxID: MAX_KEY,
+        RingNodeDataArray:NodeDataArray,
+        //NodePrefList:NodePrefList,
+        NodePrefList: map[int][]ConHash.NodeData{},
+        ReplicationFactor: REPLICATIONFACTOR,
+    }
+
+    demoRing.GenPrefList()
+
+    fmt.Printf("Reloading Ring from memory: Ring is %v\n",demoRing)
+
+    fmt.Printf("Nodes Preference Lists are: %v\n",demoRing.NodePrefList)
+
+    node.Ring = demoRing
+    for _,nodeData := range node.Ring.RingNodeDataArray{
+        if nodeData.CName == node.CName{
+            node.NodeRingPositions = append(node.NodeRingPositions,nodeData.Hash)
+        }
+    }
+    fmt.Println(node.NodeRingPositions)
 
     nodeQuery := "A2"
-	nodeIP, err := ring.GetNode(nodeQuery)
+	nodeIP, err := demoRing.GetNode(nodeQuery)
 	if err == nil {
         fmt.Printf("Node %s found at : %s \n",nodeQuery,nodeIP)
     } else{
@@ -679,9 +880,9 @@ func main(){
     }
 
     searchKey := "testing"
-    _, addr, err := ring.AllocateKey(searchKey)
+    nodeHash, addr, err := demoRing.AllocateKey(searchKey)
     if err == nil {
-		fmt.Printf("Key [%s] found at node with ip [%s] \n", searchKey, addr)
+		fmt.Printf("Key [%s] found at node %s with ip [%s] \n",searchKey, demoRing.RingNodeDataArray[nodeHash].ID,addr)
 	} else {
 		fmt.Printf("Node for key [%s] not found \n", searchKey )
 	}
@@ -691,9 +892,9 @@ func main(){
 
 	//Start of CLI interactivity
 	reader := bufio.NewReader(os.Stdin)
-    fmt.Printf("Node@%s:%s$ ",node.IP,node.Port)
+    fmt.Printf("Node %s@%s:%s$ ",node.CName,node.IP,node.Port)
 	for {
-        fmt.Printf("Node@%s:%s$ ",node.IP,node.Port)
+        fmt.Printf("Node %s@%s:%s$ ",node.CName,node.IP,node.Port)
 		cmdString, err := reader.ReadString('\n')
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)

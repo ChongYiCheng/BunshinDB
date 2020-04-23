@@ -33,6 +33,7 @@ type Ring struct{
     RingNodeDataArray []NodeData
     NodePrefList map[int][]NodeData //Map node/virtualNode unique hash to a list of nodeData of virtual/physical nodes belonging to another host
     ReplicationFactor int
+    RWFactor int
 }
 
 type NodeData struct{
@@ -68,12 +69,12 @@ func NewNode(numID int, numTokens int, DBPath string, ip string, port string, ri
 	}
 }
 
-func NewRing(maxID int, replicationFactor int) *Ring{
+func NewRing(maxID int, replicationFactor int, rwFactor int) *Ring{
 	nodeDataArray := make([]NodeData, maxID, maxID)
     nodePrefList := make(map[int][]NodeData, maxID)
 	fmt.Println(len(nodeDataArray))
 	fmt.Println(nodeDataArray[1].ID)
-	return &Ring{maxID, nodeDataArray, nodePrefList, replicationFactor}
+	return &Ring{maxID, nodeDataArray, nodePrefList, replicationFactor, rwFactor}
 }
 
 //node will create numTokens worth of virtual nodes
@@ -183,15 +184,16 @@ func (ring *Ring) AllocateKey(key string) (int,string,error){
 
 func (ring *Ring) GenPrefList(){
     nodeArray := ring.RingNodeDataArray
+    fmt.Println("Hello!")
     for i := 0 ; i < len(nodeArray) ; i++ {
         if nodeArray[i].ID != ""{
             // if node not empty, assign preference list
             ring.NodePrefList[i] = func(i int) []NodeData {
-                ret := make([]NodeData,ring.ReplicationFactor)
-                j := i + 1
+                ret := []NodeData{}
+                j := (i + 1) % ring.MaxID
                 for (j != i) {
                     if nodeArray[j].ID != "" && nodeArray[j].CName != nodeArray[i].CName{
-                        ret := append(ret,nodeArray[j])
+                        ret = append(ret,nodeArray[j])
                         if len(ret) == ring.ReplicationFactor{
                             return ret
                             }

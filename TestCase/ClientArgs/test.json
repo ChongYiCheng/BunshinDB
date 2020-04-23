@@ -1,0 +1,17 @@
+{
+ "ShopperID": "noblekid96",
+ "Items": {
+  "Lakewood Guitar": {
+   "Name": "Lakewood Guitar",
+   "Description": "Expensive AAA guitar",
+   "Quantity": 1,
+   "Price": 3500
+  }
+ },
+ "Version": {
+  "Vector": {
+   "A": 1,
+   "B": 1
+  }
+ }
+}

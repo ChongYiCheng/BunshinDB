@@ -1,22 +1,29 @@
 package main
 
 import (
-    "encoding/json"
-    "log"
+	"50.041-DistSysProject-BunshinDB/Stetho"
+	"encoding/json"
+	"io/ioutil"
+	"log"
     "fmt"
     badger "github.com/dgraph-io/badger"
     "net/http"
     "os"
     "os/exec"
     "strings"
-    "bufio"
+    //"bufio"
     "bytes"
     "net"
     "errors"
     glog "github.com/golang/glog"
     "strconv"
+<<<<<<< HEAD:conBadgerHTTPdemo.go
     "./ConHash"
     //"time"
+=======
+    "50.041-DistSysProject-BunshinDB/pkg/ConHash"
+	"time"
+>>>>>>> 08ac7f8d45135623cb19d547eb401ba25dab2b33:mainDemo.go
 )
 
 
@@ -38,6 +45,7 @@ type Node struct{
 
 type Ring struct{
     ConHash.Ring
+    stethoUrl string
 }
 
 
@@ -69,6 +77,7 @@ func contains(s []int, e int) bool {
     }
     return false
 }
+
 
 func (node *Node) HttpServerStart(){
 
@@ -924,7 +933,6 @@ func main(){
     NodeDataArray[19] = ConHash.NodeData{"B4","B",19,"127.0.0.1","8081"}
     
 
-    fmt.Printf("HardCoded NodeDataArray is %v\n",NodeDataArray)
 
     NodePrefList := map[int][]ConHash.NodeData{
         1:[]ConHash.NodeData{ConHash.NodeData{"B0","B",11,"127.0.0.1","8081"}},
@@ -944,6 +952,7 @@ func main(){
         NodePrefList:NodePrefList,
         ReplicationFactor: REPLICATIONFACTOR,
     }
+    fmt.Printf("Reloading Ring from memory: Ring is %v\n",demoRing)
 
     node.Ring = demoRing
     for _,nodeData := range node.Ring.RingNodeDataArray{
@@ -972,19 +981,39 @@ func main(){
 
     go node.Start()
 
-	//Start of CLI interactivity
-	reader := bufio.NewReader(os.Stdin)
-    fmt.Printf("Node@%s:%s$ ",node.IP,node.Port)
-	for {
-        fmt.Printf("Node@%s:%s$ ",node.IP,node.Port)
-		cmdString, err := reader.ReadString('\n')
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
+    //Start Stetho - supposed to start in another computer
+	s:= Stetho.NewStetho("5000", 1, 5)
+	go s.Start()
+	time.Sleep(time.Duration(3 * time.Second))
+    //Ring Server part
+    ringServer := NewRing(*ring, "http://10.12.7.122:5000")
+    fmt.Println("ring server register with stetho")
+    ringServer.RegisterWithStetho("set-ring")
+
+	for i,nodeData := range node.Ring.RingNodeDataArray{
+		if i %2 == 1 && i < 10 {
+			ringServer.RegisterNodeWithStetho(nodeData.Port, "add-node")
+			time.Sleep(2 * time.Second)
 		}
-		err = node.runCommand(cmdString)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-		}
+
 	}
+
+	select {}
+
+
+	//Start of CLI interactivity
+	//reader := bufio.NewReader(os.Stdin)
+    //fmt.Printf("Node@%s:%s$ ",node.IP,node.Port)
+	//for {
+    //    fmt.Printf("Node@%s:%s$ ",node.IP,node.Port)
+	//	cmdString, err := reader.ReadString('\n')
+	//	if err != nil {
+	//		fmt.Fprintln(os.Stderr, err)
+	//	}
+	//	err = node.runCommand(cmdString)
+	//	if err != nil {
+	//		fmt.Fprintln(os.Stderr, err)
+	//	}
+	//}
 }
 
