@@ -2,8 +2,6 @@
  
 ### Run Instructions 
 
-To run the nodeServer: 
-
 ```cassandraql
 #To run a nodeServer
 go run cmd/nodeServer.go <portNumber> <pathToDbFiles> <nodeId> 
