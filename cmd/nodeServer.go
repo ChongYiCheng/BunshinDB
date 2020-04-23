@@ -1,22 +1,21 @@
 package main
 
 import (
+    "50.041-DistSysProject-BunshinDB/pkg/Utils"
+    "50.041-DistSysProject-BunshinDB/pkg/ConHash"
+    "50.041-DistSysProject-BunshinDB/pkg/ShoppingCart"
+    "bufio"
+    "bytes"
     "encoding/json"
-    "log"
     "fmt"
     badger "github.com/dgraph-io/badger"
+    glog "github.com/golang/glog"
+    "log"
     "net/http"
     "os"
     "os/exec"
-    "strings"
-    "bufio"
-    "bytes"
-    "net"
-    "errors"
-    glog "github.com/golang/glog"
     "strconv"
-    "./pkg/ConHash"
-    "./pkg/ShoppingCart"
+    "strings"
 )
 
 
@@ -527,114 +526,11 @@ func (node *Node) DeleteKey(Key string) error{
     return err
 }
 
-func externalIP() (string, error) {
-	ifaces, err := net.Interfaces()
-	if err != nil {
-		return "", err
-	}
-	for _, iface := range ifaces {
-		if iface.Flags&net.FlagUp == 0 {
-			continue // interface down
-		}
-		if iface.Flags&net.FlagLoopback != 0 {
-			continue // loopback interface
-		}
-		addrs, err := iface.Addrs()
-		if err != nil {
-			return "", err
-		}
-		for _, addr := range addrs {
-			var ip net.IP
-			switch v := addr.(type) {
-			case *net.IPNet:
-				ip = v.IP
-			case *net.IPAddr:
-				ip = v.IP
-			}
-			if ip == nil || ip.IsLoopback() {
-				continue
-			}
-			ip = ip.To4()
-			if ip == nil {
-				continue // not an ipv4 address
-			}
-			return ip.String(), nil
-		}
-	}
-	return "", errors.New("are you connected to the network?")
-}
-
-func parseCommandLine(command string) ([]string, error) {
-	//Finite state machine to handle arguments with white spaces enclosed within quotes
-	//Handles escaped stuff too
-    var args []string
-    state := "start"
-    current := ""
-    quote := "\""
-    escapeNext := true
-    for i := 0; i < len(command); i++ {
-        c := command[i]
-
-        if state == "quotes" {
-            if string(c) != quote {
-                current += string(c)
-            } else {
-                args = append(args, current)
-                current = ""
-                state = "start"
-            }
-            continue
-        }
-
-        if (escapeNext) {
-            current += string(c)
-            escapeNext = false
-            continue
-        }
-
-        if (c == '\\') {
-            escapeNext = true
-            continue
-        }
-
-        if c == '"' || c == '\'' {
-            state = "quotes"
-            quote = string(c)
-            continue
-        }
-
-        if state == "arg" {
-            if c == ' ' || c == '\t' {
-                args = append(args, current)
-                current = ""
-                state = "start"
-            } else {
-                current += string(c)
-            }
-            continue
-        }
-
-        if c != ' ' && c != '\t' {
-            state = "arg"
-            current += string(c)
-        }
-    }
-
-    if state == "quotes" {
-        return []string{}, errors.New(fmt.Sprintf("Unclosed quote in command line: %s", command))
-    }
-
-    if current != "" {
-        args = append(args, current)
-    }
-
-    return args, nil
-}
 
 func (node *Node) runCommand(commandStr string) error {
     // To-Do : Add a command to view node's attributes and variables
 	commandStr = strings.TrimSuffix(commandStr, "\n")
-	arrCommandStr, parseErr := parseCommandLine(commandStr)
+	arrCommandStr, parseErr := Utils.ParseCommandLine(commandStr)
 	handle(parseErr)
 
     //Subcommands
@@ -803,7 +699,7 @@ func main(){
     const REPLICATION_FACTOR = 3;
     const RW_FACTOR = 1;
 
-    currentIP, err := externalIP()
+    currentIP, err := Utils.ExternalIP()
     fmt.Printf("Setting Node's IP to be %s\n",currentIP)
     //TODO REMOVE THIS ONCE LIONEL'S RING SERVER FUNCTION WORKS
     currentIP = "127.0.0.1"
