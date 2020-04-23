@@ -2,7 +2,6 @@ package ConHttp
 
 import (
 	"50.041-DistSysProject-BunshinDB/pkg/ConHash"
-	"bufio"
 	"bytes"
 	"encoding/json"
 	"errors"
@@ -31,7 +30,7 @@ type Message struct{
 type Node struct{
 	ConHash.Node
     ResponseChannel chan interface{}
-    TimeoutChannel chan interface{} 
+    TimeoutChannel chan interface{}
 }
 
 type Ring struct{
@@ -97,7 +96,7 @@ func (node *Node) GetHandler(w http.ResponseWriter, r *http.Request) {
         fmt.Println("Failed to allocate node to key [%s]",query)
     }
 
-    if contains(node.NodeRingPositions,dstNodeHash){ //If this node is responsible 
+    if contains(node.NodeRingPositions,dstNodeHash){ //If this node is responsible
         var responseStatus string
         queryResponse, err := node.QueryDB(query)
         if err != nil{
@@ -143,7 +142,7 @@ func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
         if AllocErr != nil{
             fmt.Println("Failed to allocate node to key [%s]",key)
         }
-        if contains(node.NodeRingPositions,dstNodeHash){ //If this node is responsible 
+        if contains(node.NodeRingPositions,dstNodeHash){ //If this node is responsible
             var responseStatus string
             err := node.UpdateDB(msgData)
             if err != nil{
@@ -208,7 +207,7 @@ func (node *Node) GetNodeHandler(w http.ResponseWriter, r *http.Request) {
 
 func (node *Node) HeartbeatHandler(w http.ResponseWriter, r *http.Request) {
     w.WriteHeader(http.StatusOK) //Set response code to 200
-    fmt.Fprintf(w,"") //Just send a blank reply at least the server knows you're reachable 
+    fmt.Fprintf(w,"") //Just send a blank reply at least the server knows you're reachable
 }
 
 func (node *Node) handleMessage(m *Message) *Message{
@@ -583,63 +582,63 @@ for the key-value pair and it in the response
 }
 
 
-func main(){
-
-    if len(os.Args) != 3{
-        fmt.Printf("Usage of program is: %s , <PORT> <DBPath>\n", os.Args[0])
-        os.Exit(0)
-    }
-	//Set constants here
-	const NUMBER_OF_VNODES = 3;
-	const MAX_KEY = 100;
-    const REPLICATION_FACTOR = 3;
-
-    currentIP, err := ExternalIP()
-    fmt.Printf("Setting Node's IP to be %s\n",currentIP)
-    handle(err)
-    port := os.Args[1]
-    DBPath := os.Args[2]
-
-    ring := ConHash.NewRing(MAX_KEY,REPLICATION_FACTOR)
-	conNode := ConHash.NewNode(1, NUMBER_OF_VNODES,DBPath,currentIP,port,ring)
-    nodeResponseChannel := make(chan interface{})
-    nodeTimeoutChannel := make(chan interface{})
-    node := Node{conNode,nodeResponseChannel,nodeTimeoutChannel}
-	//should with assign the ring to node.ring only when we register with ring?
-	node.RegisterWithRing(node.Ring)
-
-    nodeQuery := "A2"
-	nodeIP, err := ring.GetNode(nodeQuery)
-	if err == nil {
-        fmt.Printf("Node %s found at : %s \n",nodeQuery,nodeIP)
-    } else{
-        fmt.Printf("Node %s not found\n",nodeQuery)
-    }
-
-    searchKey := "testing"
-    _, addr, err := ring.AllocateKey(searchKey)
-    if err == nil {
-		fmt.Printf("Key [%s] found at node with ip [%s] \n", searchKey, addr)
-	} else {
-		fmt.Printf("Node for key [%s] not found \n", searchKey )
-	}
-
-
-    go node.Start()
-
-	//Start of CLI interactivity
-	reader := bufio.NewReader(os.Stdin)
-    fmt.Printf("Node@%s:%s$ ",node.IP,node.Port)
-	for {
-        fmt.Printf("Node@%s:%s$ ",node.IP,node.Port)
-		cmdString, err := reader.ReadString('\n')
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-		}
-		err = node.runCommand(cmdString)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-		}
-	}
-}
+//func main(){
+//
+//    if len(os.Args) != 3{
+//        fmt.Printf("Usage of program is: %s , <PORT> <DBPath>\n", os.Args[0])
+//        os.Exit(0)
+//    }
+//	//Set constants here
+//	const NUMBER_OF_VNODES = 3;
+//	const MAX_KEY = 100;
+//    const REPLICATION_FACTOR = 3;
+//
+//    currentIP, err := ExternalIP()
+//    fmt.Printf("Setting Node's IP to be %s\n",currentIP)
+//    handle(err)
+//    port := os.Args[1]
+//    DBPath := os.Args[2]
+//
+//    ring := ConHash.NewRing(MAX_KEY, REPLICATION_FACTOR)
+//	conNode := ConHash.NewNode(1, NUMBER_OF_VNODES,DBPath,currentIP,port,ring)
+//    nodeResponseChannel := make(chan interface{})
+//    nodeTimeoutChannel := make(chan interface{})
+//    node := Node{conNode,nodeResponseChannel,nodeTimeoutChannel}
+//	//should with assign the ring to node.ring only when we register with ring?
+//	node.RegisterWithRing(node.Ring)
+//
+//    nodeQuery := "A2"
+//	nodeIP, err := ring.GetNode(nodeQuery)
+//	if err == nil {
+//        fmt.Printf("Node %s found at : %s \n",nodeQuery,nodeIP)
+//    } else{
+//        fmt.Printf("Node %s not found\n",nodeQuery)
+//    }
+//
+//    searchKey := "testing"
+//    _, addr, err := ring.AllocateKey(searchKey)
+//    if err == nil {
+//		fmt.Printf("Key [%s] found at node with ip [%s] \n", searchKey, addr)
+//	} else {
+//		fmt.Printf("Node for key [%s] not found \n", searchKey )
+//	}
+//
+//
+//    go node.Start()
+//
+//	//Start of CLI interactivity
+//	reader := bufio.NewReader(os.Stdin)
+//    fmt.Printf("Node@%s:%s$ ",node.IP,node.Port)
+//	for {
+//        fmt.Printf("Node@%s:%s$ ",node.IP,node.Port)
+//		cmdString, err := reader.ReadString('\n')
+//		if err != nil {
+//			fmt.Fprintln(os.Stderr, err)
+//		}
+//		err = node.runCommand(cmdString)
+//		if err != nil {
+//			fmt.Fprintln(os.Stderr, err)
+//		}
+//	}
+//}
 

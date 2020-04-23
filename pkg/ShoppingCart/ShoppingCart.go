@@ -1,8 +1,8 @@
 package ShoppingCart
 
 import(
-    "../VectorClock"
-    "../Item"
+    "50.041-DistSysProject-BunshinDB/pkg/VectorClock"
+    "50.041-DistSysProject-BunshinDB/pkg/Item"
 )
 
 type ShoppingCart struct{

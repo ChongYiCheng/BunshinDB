@@ -101,6 +101,6 @@ func (ring *Ring) RegisterNodeWithStetho(nodeUrl string, registerNodeEndpoint st
 	log.Println(string(body))
 }
 
-func NewRing(conRing ConHash.Ring, stethoUrl string) Ring{
+func NewRingServer(conRing ConHash.Ring, stethoUrl string) Ring{
 	return Ring{conRing, stethoUrl}
 }
