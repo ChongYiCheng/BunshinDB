@@ -14,11 +14,11 @@ go run cmd/client.go <portNumber>
 #### Example Usage: 
 To run a nodeServer
 ```cassandraq#
-go run cmd/nodeServer.go 8081 /tmp/badger8081 1
+go run cmd/nodeServer.go 8080 /tmp/badger8080 1
 help 
 ```
 To run a client 
 ```cassandraql
-go run cmd/client.go 8080 
+go run cmd/client.go 9000
 help 
 ```
