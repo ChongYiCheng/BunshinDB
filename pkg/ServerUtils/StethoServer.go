@@ -73,8 +73,18 @@ func (s *StethoNode) ping(){
 				log.Printf("[STETHO] Failed to ping %s at %s because of error: %s", nodeID, nodeAddr, err)
 				s.handleFailedNode(nodeID)
 			} else {
+
 				if resp.StatusCode == 200{
-					fmt.Println("ALIVE: ", nodeAddr )
+					//success case
+					if s.nodeStatuses[nodeID] > 0 {
+						//	fainted - now we revive
+						s.nodeStatuses[nodeID] = 0 //reset
+						fmt.Printf("[STETHO] Node %s has revived! \n", nodeID)
+						s.postToRingServer(nodeID, REVIVE_NODE_ENDPOINT)
+
+					}
+					//TODO: put one more if else here add call revive-node conditionally
+					fmt.Printf("[STETHO] Node %s is alive \n", nodeID )
 				}
 			}
 
@@ -109,9 +119,11 @@ func (s *StethoNode) removeNode(nodeId string) {
 	delete(s.nodeStatuses, nodeId)
 	//TODO: Delete element from list
 	log.Println(s.nodeInfoArray)
+	//TODO: need to make sure i do not append duplicates
 	for i, nodeInfo := range s.nodeInfoArray {
 		if nodeInfo.id == nodeId {
 			s.nodeInfoArray = append(s.nodeInfoArray[:i], s.nodeInfoArray[i+1:]...)
+			break
 		}
 	}
 	log.Println(s.nodeInfoArray)
@@ -248,6 +260,7 @@ func (s *StethoNode) AddNodeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	s.addNode(payload["nodeID"], payload["nodeUrl"])
 	log.Println("[STETHO] After receiving the post request ", s.nodeInfoArray)
+
 }
 
 func (s *StethoNode) Start(){

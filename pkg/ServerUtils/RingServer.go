@@ -28,7 +28,7 @@ func (ringServer *RingServer) HttpServerStart(){
 	http.HandleFunc("/add-node", ringServer.AddNodeHandler)
 	http.HandleFunc("/faint-node", ringServer.FaintNodeHandler)
 	http.HandleFunc("/remove-node", ringServer.RemoveNodeHandler)
-	//http.HandleFunc("/revive-node", ringServer.ReviveNodeHandler)
+	http.HandleFunc("/revive-node", ringServer.ReviveNodeHandler)
 	http.HandleFunc("/get-node", ringServer.GetNodeHandler)
 	http.HandleFunc("/hb", ringServer.HeartBeatHandler)
 	log.Print(fmt.Sprintf("[RingServer] Started and Listening at %s:%s.", ringServer.ip, ringServer.port))
@@ -36,13 +36,12 @@ func (ringServer *RingServer) HttpServerStart(){
 }
 
 func (ringServer *RingServer) AddNodeHandler(w http.ResponseWriter, r *http.Request) {
-	log.Print("[RingServer] Receiving Registration from Node...")
+	log.Printf("[RingServer] Receiving Registration from a Node")
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		log.Fatalln(err)
 	}
 
-	fmt.Println(string(body))
 	var nodeDataArray []ConHash.NodeData
 	err = json.Unmarshal(body, &nodeDataArray)
 	if err != nil {
@@ -52,8 +51,8 @@ func (ringServer *RingServer) AddNodeHandler(w http.ResponseWriter, r *http.Requ
 	nodeID := phyNode.ID
 	nodeUrl := fmt.Sprintf("%s:%s", phyNode.IP, phyNode.Port)
 
-	fmt.Println(nodeID, nodeUrl)
-	//ringServer.ring.RegisterNodes()
+	actualNodeDataArray := ringServer.ring.RegisterNodes(nodeDataArray)
+	fmt.Printf("Actual Node Data Array Registered %s", actualNodeDataArray)
 
 	ringServer.RegisterNodeWithStetho(nodeID, nodeUrl)
 	ringServer.updateRing()
@@ -62,7 +61,7 @@ func (ringServer *RingServer) AddNodeHandler(w http.ResponseWriter, r *http.Requ
 
 func (ringServer *RingServer) FaintNodeHandler(w http.ResponseWriter, r *http.Request) {
 	log.Print("[RingServer] Received Faint Node From StethoServer...")
-	
+
 	//TODO: refactor the below
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
@@ -84,6 +83,7 @@ func (ringServer *RingServer) FaintNodeHandler(w http.ResponseWriter, r *http.Re
 
 
 func (ringServer *RingServer) RemoveNodeHandler(w http.ResponseWriter, r *http.Request) {
+	//TODO: Merkle tree stuff
 	log.Print("[RingServer] Received Remove Node From StethoServer...")
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
@@ -98,9 +98,31 @@ func (ringServer *RingServer) RemoveNodeHandler(w http.ResponseWriter, r *http.R
 	}
 
 	delete(ringServer.ring.NodeStatuses, payload["nodeId"])
+	//TODO: also remove from the actual ring...
 	fmt.Println("New Status Map ", ringServer.ring.NodeStatuses)
 	ringServer.updateRing()
 }
+
+func (ringServer *RingServer) ReviveNodeHandler(w http.ResponseWriter, r *http.Request) {
+	//TODO: Hinted Handoff stuff
+	log.Print("[RingServer] Received Revive Node From StethoServer...")
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	// payload = {"nodeId": "A1"}
+	var payload map[string]string
+	err = json.Unmarshal(body, &payload)
+
+	if err != nil {
+		log.Println(err)
+	}
+
+	ringServer.ring.NodeStatuses[payload["nodeId"]] = true
+	ringServer.updateRing()
+}
+
+
 
 
 func (ringServer RingServer) GetNodeHandler(w http.ResponseWriter, r *http.Request) {
@@ -176,7 +198,7 @@ func (ringServer *RingServer) RegisterNodeWithStetho(nodeID string, nodeUrl stri
 	}
 
 	body, err := ringServer.postToStetho(postUrl,  bytes.NewBuffer(requestBody))
-	fmt.Printf("[RingServer] After Registering: %x", body)
+	fmt.Printf("[RingServer] After Registering: %x \n", body)
 
 }
 
@@ -192,10 +214,15 @@ func NewRingServer(conRing ConHash.Ring, stethoUrl string, port string) RingServ
 }
 
  func (ringServer *RingServer) updateRing(){
+ 	fmt.Printf("call update ring")
 	for _, nodeData := range ringServer.ring.RingNodeDataArray{
+		//TODO: investigate why url is empty
+		if nodeData.IP == "" || nodeData.ID[len(nodeData.ID) - 1] != '0' {
+			continue
+		}
 		nodeUrl := fmt.Sprintf("http://%s:%s", nodeData.IP, nodeData.Port)
 		postUrl := fmt.Sprintf("http://%s/%s", nodeUrl, NEW_RING_ENDPOINT)
-		fmt.Println("Sending New Ring to :", postUrl)
+		fmt.Printf("Sending New Ring to Node %s at %s \n", nodeData.ID, postUrl)
 		requestBody, err := json.Marshal(ringServer.ring)
 		if err != nil {
 			fmt.Println(err)
