@@ -4,12 +4,15 @@
 
 ```cassandraql
 #To run a nodeServer
-go run cmd/nodeServer.go <portNumber> <pathToDbFiles> <nodeId> 
+go run cmd/nodeServer.go <portNumber> <pathToDbFiles> <nodeId> <shouldRegister true|false> 
 
 #To run a client 
 go run cmd/client.go <portNumber> 
 
 ```
+
+Note: The last argument, `shouldRegister` is either `"true"` or `"false"`. 
+Set it to false if we want to simulate a revival of the node.  
 
 #### Example Usage: 
 To run a nodeServer
@@ -27,6 +30,6 @@ Fault Detection
 ```cassandraql
 go run cmd/ringServer.go
 go run cmd/stethoServer.go
-go run cmd/nodeServerSample.go 
+go run cmd/nodeServer 8081 /tmp/badger8081 1 true 
 
 ```
