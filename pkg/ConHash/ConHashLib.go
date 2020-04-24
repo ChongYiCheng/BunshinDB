@@ -140,6 +140,7 @@ func (n *Node) RegisterWithRingServer(ringUrl string) {
 	defer resp.Body.Close()
 
 	body, err := ioutil.ReadAll(resp.Body)
+	//TODO: print status code instead of the response itself
 	fmt.Println("Response from registering w Ring Server: ", string(body))
 	if err != nil {
 		log.Fatalln(err)

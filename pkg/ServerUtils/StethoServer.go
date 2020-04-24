@@ -3,6 +3,7 @@ package ServerUtils
 import (
 	"50.041-DistSysProject-BunshinDB/pkg/ConHash"
 	"50.041-DistSysProject-BunshinDB/pkg/ConHttp"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -11,6 +12,13 @@ import (
 	"strings"
 	"time"
 )
+
+
+const FAINT_NODE_ENDPOINT = "faint-node"
+const REMOVE_NODE_ENDPOINT = "remove-node"
+const REVIVE_NODE_ENDPOINT = "revive-node"
+//Once we exceed 10, we will declare it as a "permanent failure"
+const FAIL_THRESHOLD = 10
 
 type NodeInfo struct {
 	id string 
@@ -29,9 +37,9 @@ type StethoNode struct {
 	nodeStatuses map[string]int
 }
 
-func (s *StethoNode) AddNode(nodeID string, nodeAddr string){
-	//s.nodes = append(s.nodes, n)
-	s.nodeInfoArray = append(s.nodeInfoArray, NodeInfo{
+func (s *StethoNode) addNode(nodeID string, nodeAddr string){
+	s.nodeStatuses[nodeID] = 0
+ 	s.nodeInfoArray = append(s.nodeInfoArray, NodeInfo{
 		id:  nodeID,
 		url: nodeAddr,
 	})
@@ -63,30 +71,90 @@ func (s *StethoNode) ping(){
 			//TODO: need to be able to differentiate the type of failure such as timeout vs no host vs invalid port etc.
 			if err != nil {
 				log.Printf("[STETHO] Failed to ping %s at %s because of error: %s", nodeID, nodeAddr, err)
+				s.handleFailedNode(nodeID)
 			} else {
 				if resp.StatusCode == 200{
 					fmt.Println("ALIVE: ", nodeAddr )
 				}
 			}
 
-			time.Sleep(time.Duration(5 * time.Second))
+			time.Sleep(time.Duration(time.Duration(s.pingIntervalSeconds) * time.Second))
 		}
 		time.Sleep(time.Duration(1 * time.Second))
 	}
 }
 
 func (s *StethoNode) handleFailedNode(nodeID string){
-	s.nodeStatuses[nodeID] +=1
-	if s.nodeStatuses[nodeID] >= 10 {
+	//First faint
+	if s.nodeStatuses[nodeID] == 0 {
+		s.faintNode(nodeID)
+		s.nodeStatuses[nodeID] +=1
+
+	} else if s.nodeStatuses[nodeID] < 10{
+		//the case for 1 - 9
+		s.nodeStatuses[nodeID] +=1
+	} else if s.nodeStatuses[nodeID] >= 10 {
 		s.removeNode(nodeID)
 	}
+	fmt.Println(s.nodeStatuses)
 }
 
-func (s *StethoNode) removeNode(nodeID string) {
-	delete(s.nodeStatuses, nodeID)
-//	Make a post request?
+func (s *StethoNode) faintNode(nodeId string){
+
+	s.postToRingServer(nodeId, FAINT_NODE_ENDPOINT)
+}
+
+func (s *StethoNode) removeNode(nodeId string) {
+	log.Printf("[Stetho] Removing [Node %s] due to perm failure \n", nodeId)
+	delete(s.nodeStatuses, nodeId)
+	//TODO: Delete element from list
+	log.Println(s.nodeInfoArray)
+	for i, nodeInfo := range s.nodeInfoArray {
+		if nodeInfo.id == nodeId {
+			s.nodeInfoArray = append(s.nodeInfoArray[:i], s.nodeInfoArray[i+1:]...)
+		}
+	}
+	log.Println(s.nodeInfoArray)
+	s.postToRingServer(nodeId, REMOVE_NODE_ENDPOINT)
 
 }
+
+//func (s *StethoNode) reviveNode(nodeId string) {
+//	s.nodeStatuses[nodeId] = 0
+//	s.postToRingServer(nodeId, REVIVE_NODE_ENDPOINT)
+//
+//}
+
+func (s *StethoNode) postToRingServer(nodeId string, endpoint string) ([]byte, error){
+	//REVIVE, FAINT, REMOVE
+	postUrl := fmt.Sprintf("http://%s/%s", s.ringAddr, endpoint)
+	requestBody, err := json.Marshal(map[string]string {
+		//TODO: don't hardcode it
+		"nodeId": nodeId,
+	})
+
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	//TODO: Explore refactoring the below lines
+	resp, err := http.Post(postUrl, "application/json", bytes.NewBuffer(requestBody))
+	if err != nil {
+		log.Println("Check if Ring Server is up and running")
+		log.Println(err)
+	}
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	return body, err
+
+}
+
+
 
 func (s *StethoNode) HttpServerStart(){
 
@@ -178,7 +246,7 @@ func (s *StethoNode) AddNodeHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	s.AddNode(payload["nodeID"], payload["nodeUrl"])
+	s.addNode(payload["nodeID"], payload["nodeUrl"])
 	log.Println("[STETHO] After receiving the post request ", s.nodeInfoArray)
 }
 

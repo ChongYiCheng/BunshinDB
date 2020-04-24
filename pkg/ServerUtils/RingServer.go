@@ -23,16 +23,18 @@ const ADD_NODE_URL = "add-node"
 const RING_SERVER_PORT = "5001"
 
 //TODO: Decide on standard port number for ringServer in future, currently hardcoded as 5001
-func (ringServer RingServer) HttpServerStart(){
+func (ringServer *RingServer) HttpServerStart(){
 	http.HandleFunc("/add-node", ringServer.AddNodeHandler)
 	http.HandleFunc("/faint-node", ringServer.FaintNodeHandler)
+	http.HandleFunc("/remove-node", ringServer.RemoveNodeHandler)
+	//http.HandleFunc("/revive-node", ringServer.ReviveNodeHandler)
 	http.HandleFunc("/get-node", ringServer.GetNodeHandler)
 	http.HandleFunc("/hb", ringServer.HeartBeatHandler)
 	log.Print(fmt.Sprintf("[RingServer] Started and Listening at %s:%s.", ringServer.ip, ringServer.port))
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", "5001"), nil))
 }
 
-func (ringServer RingServer) AddNodeHandler(w http.ResponseWriter, r *http.Request) {
+func (ringServer *RingServer) AddNodeHandler(w http.ResponseWriter, r *http.Request) {
 	log.Print("[RingServer] Receiving Registration from Node...")
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
@@ -64,10 +66,48 @@ func (ringServer RingServer) AddNodeHandler(w http.ResponseWriter, r *http.Reque
 
 }
 
-func (ringServer RingServer) FaintNodeHandler(w http.ResponseWriter, r *http.Request) {
-	//TODO: change this
-	ringServer.HeartBeatHandler(w, r)
+
+func (ringServer *RingServer) FaintNodeHandler(w http.ResponseWriter, r *http.Request) {
+	log.Print("[RingServer] Received Faint Node From StethoServer...")
+
+	//TODO: refactor the below
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	// payload = {"nodeId": "A1"}
+	var payload map[string]string
+	err = json.Unmarshal(body, &payload)
+
+	if err != nil {
+		log.Println(err)
+	}
+	ringServer.ring.NodeStatuses[payload["nodeId"]] = false
+	fmt.Println("New Status Map ", ringServer.ring.NodeStatuses)
+//	TODO:update ring and send new ring to all node Servers
+
 }
+
+
+func (ringServer *RingServer) RemoveNodeHandler(w http.ResponseWriter, r *http.Request) {
+	log.Print("[RingServer] Received Remove Node From StethoServer...")
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	// payload = {"nodeId": "A1"}
+	var payload map[string]string
+	err = json.Unmarshal(body, &payload)
+
+	if err != nil {
+		log.Println(err)
+	}
+
+	delete(ringServer.ring.NodeStatuses, payload["nodeId"])
+	fmt.Println("New Status Map ", ringServer.ring.NodeStatuses)
+
+}
+
 
 func (ringServer RingServer) GetNodeHandler(w http.ResponseWriter, r *http.Request) {
 	//TODO: change this
