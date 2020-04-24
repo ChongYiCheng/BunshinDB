@@ -17,6 +17,7 @@ import (
     "os/exec"
     "strconv"
     "strings"
+    "time"
 )
 
 
@@ -73,6 +74,43 @@ func InPrefList(prefList []ConHash.NodeData, nodeIP string, nodePort string) boo
     }
     return false
 }
+
+
+const RING_MAX_ID = 64
+const REGISTER_ENDPOINT = "add-node"
+const WARMUP_DURATION = 3 //wait before node registers
+//TODO: consider hashing on the server side
+func (n *Node) RegisterWithRingServer(ringUrl string) {
+    nodeDataArray := []ConHash.NodeData {}
+    //copy(tempNodeDataArray,localRing.ringNodeDataArray)
+    //TODO: Can we do deduplication on the node side?
+    for i := 0; i < n.NumTokens +1; i ++ {
+        id := fmt.Sprintf("%s%d", n.CName, i)
+        hash := ConHash.HashMD5(id, 0, RING_MAX_ID)
+        nodeDataArray = append(nodeDataArray, ConHash.NewNodeData(id, n.CName, hash, n.IP, n.Port))
+    }
+    log.Println("Length: ", len(nodeDataArray))
+    n.NodeDataArray = nodeDataArray
+    requestBody, err := json.Marshal(nodeDataArray)
+    // Send the Ring Server
+    //TODO: Refactor this into a function
+    //TODO: Change RING_URL to be accessed from an attribute
+    postURL := fmt.Sprintf("%s/%s", ringUrl, REGISTER_ENDPOINT)
+    resp, err := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
+    if err != nil {
+        log.Println("Check if RingServer is up and running")
+        log.Fatalln(err)
+    }
+    defer resp.Body.Close()
+
+    body, err := ioutil.ReadAll(resp.Body)
+    //TODO: print status code instead of the response itself
+    fmt.Println("Response from registering w Ring Server: ", string(body))
+    if err != nil {
+        log.Fatalln(err)
+    }
+}
+
 
 func (node *Node) HttpServerStart(){
 
@@ -704,8 +742,9 @@ address and port
 
 func main(){
 
-    if len(os.Args) != 4{
-        fmt.Printf("Usage of program is: %s <PORT> <DBPath> <NodeNumID>\n", os.Args[0])
+    if len(os.Args) != 5{
+        fmt.Printf("Usage of program is: %s <PORT> <DBPath> <NodeNumID> <bool: If node should " +
+            "register with server, False to simulate revival>\n", os.Args[0])
         os.Exit(0)
     }
 	//Set constants here
@@ -721,15 +760,30 @@ func main(){
     handle(err)
     port := os.Args[1]
     DBPath := os.Args[2]
+
+    //TODO: check this ID thing out
     NodeNumID,strconverr := strconv.Atoi(os.Args[3])
+
+    shouldRegisterWithServer, strconverr := strconv.ParseBool(os.Args[4])
+    if strconverr != nil{
+        log.Fatalln(strconverr)
+    }
+
 
     if strconverr != nil{
         fmt.Errorf("Failed to convert NodeNumID to int. Please enter an integer")
     }
     fmt.Println("Testing 1")
 
-    ring := ConHash.NewRing(MAX_KEY,REPLICATION_FACTOR,RW_FACTOR)
-	conNode := ConHash.NewNode(NodeNumID, NUMBER_OF_VNODES,DBPath,currentIP,port,ring)
+    //ring := ConHash.NewRing(MAX_KEY,REPLICATION_FACTOR,RW_FACTOR)
+	conNode := ConHash.NewNode(NodeNumID, NUMBER_OF_VNODES,DBPath,currentIP,port, &ConHash.Ring{
+        MaxID:             0,
+        RingNodeDataArray: nil,
+        NodePrefList:      nil,
+        ReplicationFactor: 0,
+        RWFactor:          0,
+        NodeStatuses:      nil,
+    })
     node := Node{conNode}
 	//should with assign the ring to node.ring only when we register with ring?
 	//node.RegisterWithRing(node.Ring)
@@ -798,8 +852,13 @@ func main(){
 		fmt.Printf("Node for key [%s] not found \n", searchKey )
 	}
 
-
     go node.Start()
+    time.Sleep(time.Duration(WARMUP_DURATION) * time.Second)
+    //Important to put registration after start. So that if the server fails early,
+    //it should not register
+    if shouldRegisterWithServer {
+        node.RegisterWithRingServer("http://" + ConHash.RING_URL)
+    }
 
 	//Start of CLI interactivity
 	reader := bufio.NewReader(os.Stdin)
