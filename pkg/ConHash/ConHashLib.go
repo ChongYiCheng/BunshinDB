@@ -38,6 +38,7 @@ type Ring struct{
     NodePrefList map[int][]NodeData //Map node/virtualNode unique hash to a list of nodeData of virtual/physical nodes belonging to another host
     ReplicationFactor int
     RWFactor int
+    NodeStatuses map[string]bool
 }
 
 type NodeData struct{
@@ -91,7 +92,8 @@ func NewRing(maxID int, replicationFactor int, rwFactor int) *Ring{
     nodePrefList := make(map[int][]NodeData, maxID)
 	fmt.Println(len(nodeDataArray))
 	fmt.Println(nodeDataArray[1].ID)
-	return &Ring{maxID, nodeDataArray, nodePrefList, replicationFactor, rwFactor}
+	return &Ring{maxID, nodeDataArray,
+		nodePrefList, replicationFactor, rwFactor, map[string]bool{}}
 }
 
 //node will create numTokens worth of virtual nodes

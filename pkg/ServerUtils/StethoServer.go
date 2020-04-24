@@ -24,6 +24,9 @@ type StethoNode struct {
 	ringAddr            string
 	port                string
 	pingIntervalSeconds int //How long the stethoscope should wait after each cycle?
+
+	// {nodeID: numberOfTimesItHasFailed }
+	nodeStatuses map[string]int
 }
 
 func (s *StethoNode) AddNode(nodeID string, nodeAddr string){
@@ -70,6 +73,19 @@ func (s *StethoNode) ping(){
 		}
 		time.Sleep(time.Duration(1 * time.Second))
 	}
+}
+
+func (s *StethoNode) handleFailedNode(nodeID string){
+	s.nodeStatuses[nodeID] +=1
+	if s.nodeStatuses[nodeID] >= 10 {
+		s.removeNode(nodeID)
+	}
+}
+
+func (s *StethoNode) removeNode(nodeID string) {
+	delete(s.nodeStatuses, nodeID)
+//	Make a post request?
+
 }
 
 func (s *StethoNode) HttpServerStart(){
@@ -178,8 +194,10 @@ func NewStethoServer(port string, numSeconds int, timeoutSeconds int) StethoNode
 
 	nodeInfoArray := []NodeInfo{}
 	ringServer := ""
+	nodeStatuses := map[string] int {}
 
-	return StethoNode{client, nodeInfoArray, ringServer, port, numSeconds}
+	return StethoNode{client, nodeInfoArray,
+		ringServer, port, numSeconds, nodeStatuses}
 
 
 }
