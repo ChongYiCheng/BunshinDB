@@ -12,18 +12,26 @@ import (
 	"time"
 )
 
+type NodeInfo struct {
+	id string 
+	url string
+}
+
 type StethoNode struct {
 
-	client http.Client
-	nodeAddrs []string
-	ringAddr string
-	port string
+	client              http.Client
+	nodeInfoArray       []NodeInfo
+	ringAddr            string
+	port                string
 	pingIntervalSeconds int //How long the stethoscope should wait after each cycle?
 }
 
-func (s *StethoNode) AddNode(nodeAddr string){
+func (s *StethoNode) AddNode(nodeID string, nodeAddr string){
 	//s.nodes = append(s.nodes, n)
-	s.nodeAddrs = append(s.nodeAddrs, nodeAddr)
+	s.nodeInfoArray = append(s.nodeInfoArray, NodeInfo{
+		id:  nodeID,
+		url: nodeAddr,
+	})
 
 }
 
@@ -37,19 +45,21 @@ func (s *StethoNode) ping(){
 	time.Sleep(time.Duration(5 * time.Second))
 	log.Print("Stetho is up and pinging")
 	for {
-		for _, nodeAddr := range(s.nodeAddrs){
+		for _, nodeInfo := range(s.nodeInfoArray){
 			//https://github.com/golang/go/issues/18824
+			nodeID := nodeInfo.id
+			nodeAddr := nodeInfo.url
 			urlString := fmt.Sprintf("http://%s/%s", nodeAddr, "hb")
 			//log.Print(fmt.Sprintf("Pinging %s at %s",
 			//	node.CName, urlString))
-			log.Print(fmt.Sprintf("[STETHO] Pinging %s", urlString))
+			log.Print(fmt.Sprintf("[STETHO] Pinging %s at %s", nodeID, urlString))
 
 			resp, err := s.client.Get(urlString)
 
 			//Fails for some reason
 			//TODO: need to be able to differentiate the type of failure such as timeout vs no host vs invalid port etc.
 			if err != nil {
-				log.Printf("[STETHO] %s:%s", nodeAddr, err)
+				log.Printf("[STETHO] Failed to ping %s at %s because of error: %s", nodeID, nodeAddr, err)
 			} else {
 				if resp.StatusCode == 200{
 					fmt.Println("ALIVE: ", nodeAddr )
@@ -146,14 +156,14 @@ func (s *StethoNode) AddNodeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	//log.Println(string(body))
 
-	var payload map[string]string
+	var payload map[string]map[string]string
 	err = json.Unmarshal(body, &payload)
 
 	if err != nil {
 		log.Fatalln(err)
 	}
-	s.nodeAddrs = append(s.nodeAddrs, payload["nodeUrl"])
-	log.Println("[STETHO] After receiving the post request ", s.nodeAddrs)
+	s.AddNode(payload["node"]["nodeID"], payload["node"]["nodeUrl"])
+	log.Println("[STETHO] After receiving the post request ", s.nodeInfoArray)
 }
 
 func (s *StethoNode) Start(){
@@ -166,10 +176,10 @@ func (s *StethoNode) Start(){
 func NewStethoServer(port string, numSeconds int, timeoutSeconds int) StethoNode {
 	client := http.Client{Timeout:time.Duration(time.Duration(timeoutSeconds) * time.Second)}
 
-	nodeAddrs := []string{}
+	nodeInfoArray := []NodeInfo{}
 	ringServer := ""
 
-	return StethoNode{client, nodeAddrs, ringServer, port, numSeconds}
+	return StethoNode{client, nodeInfoArray, ringServer, port, numSeconds}
 
 
 }

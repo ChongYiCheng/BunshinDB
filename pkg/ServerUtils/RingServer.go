@@ -40,7 +40,7 @@ func (ringServer RingServer) AddNodeHandler(w http.ResponseWriter, r *http.Reque
 		log.Fatalln(err)
 	}
 	/*
-	example payload = {"nodeUrl" : "http://10.12.122.1:8000"}
+	example payload = {"node" : {nodeUrl: "http://10.12.122.1:8000", id: "A1"}
 	 */
 	var payload map[string]string
 	fmt.Println(string(body))
@@ -50,7 +50,7 @@ func (ringServer RingServer) AddNodeHandler(w http.ResponseWriter, r *http.Reque
 		log.Fatalln(err)
 	}
 
-	ringServer.RegisterNodeWithStetho(payload["nodeUrl"])
+	ringServer.RegisterNodeWithStetho(payload["node"])
 
 }
 
@@ -103,6 +103,9 @@ func (ringServer RingServer) RegisterWithStetho( endpoint string) {
 func (ringServer *RingServer) postToStetho(reqUrl string, request io.Reader) ([]byte, error){
 
 	resp, err := http.Post(reqUrl, "application/json", request)
+	if err != nil {
+		log.Fatalln(err)
+	}
 
 	defer resp.Body.Close()
 
