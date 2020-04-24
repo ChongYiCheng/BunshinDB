@@ -1,10 +1,15 @@
 package ConHash
 
 import (
+	"bytes"
 	"crypto/md5"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/dgraph-io/badger"
+	"io/ioutil"
+	"log"
+	"net/http"
 )
 
 type Node struct{
@@ -68,6 +73,19 @@ func NewNode(numID int, numTokens int, DBPath string, ip string, port string, ri
 	}
 }
 
+
+func NewNodeServer(numID int, numTokens int, DBPath string, ip string, port string) Node{
+	return Node{
+		ID:string(ToChar(numID)) + "0",
+		CName:string(ToChar(numID)),
+		NumTokens: numTokens,
+		DBPath: DBPath,
+		IP: ip,
+		Port: port,
+	}
+}
+
+
 func NewRing(maxID int, replicationFactor int, rwFactor int) *Ring{
 	nodeDataArray := make([]NodeData, maxID, maxID)
     nodePrefList := make(map[int][]NodeData, maxID)
@@ -91,6 +109,41 @@ func (n *Node) RegisterWithRing(r *Ring) {
 	n.NodeDataArray = r.RegisterNodes(nodeDataArray)
 	fmt.Printf("Ring registered for %s: %s  \n", n.ID, ToString(n.NodeDataArray))
 }
+
+const RING_URL = "10.12.7.122:5001"
+const RING_MAX_ID = 64
+const REGISTER_ENDPOINT = "add-node"
+//TODO: consider hashing on the server side
+func (n *Node) RegisterWithRingServer(ringUrl string) {
+	nodeDataArray := []NodeData {}
+	//copy(tempNodeDataArray,localRing.ringNodeDataArray)
+	//TODO: Can we do deduplication on the node side?
+	for i := 0; i < n.NumTokens +1; i ++ {
+		id := fmt.Sprintf("%s%d", n.CName, i)
+		hash := HashMD5(id, 0, RING_MAX_ID)
+		nodeDataArray = append(nodeDataArray, NewNodeData(id, n.CName, hash, n.IP, n.Port))
+	}
+	log.Println("Length: ", len(nodeDataArray))
+	n.NodeDataArray = nodeDataArray
+	requestBody, err := json.Marshal(nodeDataArray)
+	// Send the Ring Server
+	//TODO: Refactor this into a function
+	//TODO: Change RING_URL to be accessed from an attribute
+	postURL := fmt.Sprintf("%s/%s", ringUrl, REGISTER_ENDPOINT)
+	resp, err := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
+	if err != nil {
+		log.Println("Check if RingServer is up and running")
+		log.Fatalln(err)
+	}
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	fmt.Println("Response from registering w Ring Server: ", string(body))
+	if err != nil {
+		log.Fatalln(err)
+	}
+}
+
 
 func (r *Ring) RegisterNodes(nodeDataArray []NodeData) []NodeData{
 	ret := []NodeData{}

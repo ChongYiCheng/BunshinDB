@@ -156,13 +156,13 @@ func (s *StethoNode) AddNodeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	//log.Println(string(body))
 
-	var payload map[string]map[string]string
+	var payload map[string]string
 	err = json.Unmarshal(body, &payload)
 
 	if err != nil {
 		log.Fatalln(err)
 	}
-	s.AddNode(payload["node"]["nodeID"], payload["node"]["nodeUrl"])
+	s.AddNode(payload["nodeID"], payload["nodeUrl"])
 	log.Println("[STETHO] After receiving the post request ", s.nodeInfoArray)
 }
 

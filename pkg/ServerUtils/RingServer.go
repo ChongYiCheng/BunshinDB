@@ -33,7 +33,6 @@ func (ringServer RingServer) HttpServerStart(){
 }
 
 func (ringServer RingServer) AddNodeHandler(w http.ResponseWriter, r *http.Request) {
-	//TODO: change this
 	log.Print("[RingServer] Receiving Registration from Node...")
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
@@ -42,15 +41,26 @@ func (ringServer RingServer) AddNodeHandler(w http.ResponseWriter, r *http.Reque
 	/*
 	example payload = {"node" : {nodeUrl: "http://10.12.122.1:8000", id: "A1"}
 	 */
-	var payload map[string]string
+	//var payload map[string]map[string]string
+	//
+	//err = json.Unmarshal(body, &payload)
+	//if err != nil {
+	//	log.Println(err)
+	//}
 	fmt.Println(string(body))
-	err = json.Unmarshal(body, &payload)
+	var nodeDataArray []ConHash.NodeData
+	err = json.Unmarshal(body, &nodeDataArray)
 	if err != nil {
-		log.Println("1")
-		log.Fatalln(err)
+		log.Println(err)
 	}
+	phyNode := nodeDataArray[0]
+	nodeID := phyNode.ID
+	nodeUrl := fmt.Sprintf("%s:%s", phyNode.IP, phyNode.Port)
 
-	ringServer.RegisterNodeWithStetho(payload["node"])
+	fmt.Println(nodeID, nodeUrl)
+	//ringServer.ring.RegisterNodes()
+
+	ringServer.RegisterNodeWithStetho(nodeID, nodeUrl)
 
 }
 
@@ -104,9 +114,9 @@ func (ringServer *RingServer) postToStetho(reqUrl string, request io.Reader) ([]
 
 	resp, err := http.Post(reqUrl, "application/json", request)
 	if err != nil {
+		log.Println("Check if Stetho Server is up and running")
 		log.Fatalln(err)
 	}
-
 	defer resp.Body.Close()
 
 	body, err := ioutil.ReadAll(resp.Body)
@@ -118,12 +128,13 @@ func (ringServer *RingServer) postToStetho(reqUrl string, request io.Reader) ([]
 
 }
 
-func (ringServer *RingServer) RegisterNodeWithStetho(nodeUrl string) {
+func (ringServer *RingServer) RegisterNodeWithStetho(nodeID string, nodeUrl string) {
 	log.Println("Registering Node with Stetho Node")
 	postUrl := fmt.Sprintf("%s/%s", ringServer.stethoUrl, ADD_NODE_URL)
-	requestBody, err := json.Marshal(map[string] string {
+	requestBody, err := json.Marshal(map[string]string {
 		//TODO: don't hardcode it
 		"nodeUrl": nodeUrl,
+		"nodeID": nodeID,
 	})
 
 	if err != nil {
