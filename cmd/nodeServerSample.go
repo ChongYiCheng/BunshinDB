@@ -16,4 +16,6 @@ func main() {
 	}
 	node := ConHash.NewNodeServer(1, 4, "/tmp/Badger8080", ip, "8002")
 	node.RegisterWithRingServer(RING_URL)
+
+
 }

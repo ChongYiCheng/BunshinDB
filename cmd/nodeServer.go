@@ -10,6 +10,7 @@ import (
     "fmt"
     badger "github.com/dgraph-io/badger"
     glog "github.com/golang/glog"
+    "io/ioutil"
     "log"
     "net/http"
     "os"
@@ -362,6 +363,20 @@ func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
 func (node *Node) NewRingHandler(w http.ResponseWriter, r *http.Request) {
     //TODO update ring
     //Need a onUpdateRing function in conHash.go
+
+    body, err := ioutil.ReadAll(r.Body)
+    if err != nil {
+        log.Fatalln(err)
+    }
+
+    var ring ConHash.Ring
+    err = json.Unmarshal(body, &ring)
+
+    if err != nil {
+        log.Println(err)
+    }
+
+    node.Ring = &ring
 }
 
 func (node *Node) GetNodeHandler(w http.ResponseWriter, r *http.Request) {

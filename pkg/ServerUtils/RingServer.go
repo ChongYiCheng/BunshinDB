@@ -21,6 +21,7 @@ type RingServer struct {
 
 const ADD_NODE_URL = "add-node"
 const RING_SERVER_PORT = "5001"
+const NEW_RING_ENDPOINT = "new-ring"
 
 //TODO: Decide on standard port number for ringServer in future, currently hardcoded as 5001
 func (ringServer *RingServer) HttpServerStart(){
@@ -63,7 +64,7 @@ func (ringServer *RingServer) AddNodeHandler(w http.ResponseWriter, r *http.Requ
 	//ringServer.ring.RegisterNodes()
 
 	ringServer.RegisterNodeWithStetho(nodeID, nodeUrl)
-
+	ringServer.updateRing()
 }
 
 
@@ -86,6 +87,8 @@ func (ringServer *RingServer) FaintNodeHandler(w http.ResponseWriter, r *http.Re
 	fmt.Println("New Status Map ", ringServer.ring.NodeStatuses)
 //	TODO:update ring and send new ring to all node Servers
 
+	ringServer.updateRing()
+
 }
 
 
@@ -105,7 +108,7 @@ func (ringServer *RingServer) RemoveNodeHandler(w http.ResponseWriter, r *http.R
 
 	delete(ringServer.ring.NodeStatuses, payload["nodeId"])
 	fmt.Println("New Status Map ", ringServer.ring.NodeStatuses)
-
+	ringServer.updateRing()
 }
 
 
@@ -194,6 +197,21 @@ func NewRingServer(conRing ConHash.Ring, stethoUrl string, port string) RingServ
 		fmt.Println(err)
 		log.Fatalln(err)
 		return RingServer{}
+	}
+}
+
+ func (ringServer *RingServer) updateRing(){
+	for _, nodeData := range ringServer.ring.RingNodeDataArray{
+		nodeUrl := fmt.Sprintf("http://%s:%s", nodeData.IP, nodeData.Port)
+		postUrl := fmt.Sprintf("http://%s/%s", nodeUrl, NEW_RING_ENDPOINT)
+		fmt.Println("Sending New Ring to :", postUrl)
+		requestBody, err := json.Marshal(ringServer.ring)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		go http.Post(postUrl, "application/json", bytes.NewBuffer(requestBody))
+
 	}
 }
 
