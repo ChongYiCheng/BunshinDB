@@ -22,3 +22,11 @@ To run a client
 go run cmd/client.go 9000
 help 
 ```
+
+Fault Detection 
+```cassandraql
+go run cmd/ringServer.go
+go run cmd/stethoServer.go
+go run cmd/nodeServerSample.go 
+
+```

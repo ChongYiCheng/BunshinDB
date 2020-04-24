@@ -6,10 +6,15 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+<<<<<<< HEAD
 	// "errors"
 	"fmt"
 	"math/rand"
 	// "net"
+=======
+	"fmt"
+	"math/rand"
+>>>>>>> master
 	"net/http"
 	"os"
 	"os/exec"
