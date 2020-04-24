@@ -41,15 +41,7 @@ func (ringServer *RingServer) AddNodeHandler(w http.ResponseWriter, r *http.Requ
 	if err != nil {
 		log.Fatalln(err)
 	}
-	/*
-	example payload = {"node" : {nodeUrl: "http://10.12.122.1:8000", id: "A1"}
-	 */
-	//var payload map[string]map[string]string
-	//
-	//err = json.Unmarshal(body, &payload)
-	//if err != nil {
-	//	log.Println(err)
-	//}
+
 	fmt.Println(string(body))
 	var nodeDataArray []ConHash.NodeData
 	err = json.Unmarshal(body, &nodeDataArray)
@@ -70,7 +62,7 @@ func (ringServer *RingServer) AddNodeHandler(w http.ResponseWriter, r *http.Requ
 
 func (ringServer *RingServer) FaintNodeHandler(w http.ResponseWriter, r *http.Request) {
 	log.Print("[RingServer] Received Faint Node From StethoServer...")
-
+	
 	//TODO: refactor the below
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
@@ -85,7 +77,6 @@ func (ringServer *RingServer) FaintNodeHandler(w http.ResponseWriter, r *http.Re
 	}
 	ringServer.ring.NodeStatuses[payload["nodeId"]] = false
 	fmt.Println("New Status Map ", ringServer.ring.NodeStatuses)
-//	TODO:update ring and send new ring to all node Servers
 
 	ringServer.updateRing()
 
