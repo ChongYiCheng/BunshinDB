@@ -1,6 +1,5 @@
 package main
 
-
 import (
 	"50.041-DistSysProject-BunshinDB/Stetho"
 	"encoding/json"
@@ -18,8 +17,13 @@ import (
     "errors"
     glog "github.com/golang/glog"
     "strconv"
+<<<<<<< HEAD:conBadgerHTTPdemo.go
+    "./ConHash"
+    //"time"
+=======
     "50.041-DistSysProject-BunshinDB/pkg/ConHash"
 	"time"
+>>>>>>> 08ac7f8d45135623cb19d547eb401ba25dab2b33:mainDemo.go
 )
 
 
@@ -1012,3 +1016,4 @@ func main(){
 	//	}
 	//}
 }
+

@@ -135,25 +135,25 @@ func TestMergeShoppingCarts(t *testing.T){
         VectorClock.VectorClock{map[string]int{"A":2,"C":1}},
     }
     testInputConflictingShoppingCarts1 := []ShoppingCart{testInputCart1_2,testInputCart1_1}
-    MergingNodeID1 := "A"
+    //MergingNodeID1 := "A"
     expectedOutcome1 := ShoppingCart{
         shopperID,
         map[string]Item.Item{lionel.Name:lionel,anguo.Name:anguo,cheowfu.Name:cheowfu,gabriel.Name:gabriel,yicheng.Name:yicheng},
         //map[string]int{"Lionel":1,"Cheow Fu":1,"An Guo":1,"Gabriel":1,"Yi Cheng":1},
-        VectorClock.VectorClock{map[string]int{"A":3,"B":1,"C":1}},
+        VectorClock.VectorClock{map[string]int{"A":2,"B":1,"C":1}},
     }
 
     tt := []struct{
         Name string
         InputConflictingCarts []ShoppingCart
-        MergingNodeID string
+        //MergingNodeID string
         ExpectedOutcome ShoppingCart
     }{
-        {"Basic Test",testInputConflictingShoppingCarts1,MergingNodeID1,expectedOutcome1},
+        {"Basic Test",testInputConflictingShoppingCarts1,expectedOutcome1},
     }
 
     for _,tc := range tt{
-        outcome := MergeShoppingCarts(tc.InputConflictingCarts,tc.MergingNodeID)
+        outcome := MergeShoppingCarts(tc.InputConflictingCarts)
         if reflect.DeepEqual(outcome,tc.ExpectedOutcome) != true{
             t.Errorf("Expected %v;\n Got %v\n",tc.ExpectedOutcome,outcome)
         }
