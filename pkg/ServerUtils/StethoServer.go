@@ -18,7 +18,6 @@ const FAINT_NODE_ENDPOINT = "faint-node"
 const REMOVE_NODE_ENDPOINT = "remove-node"
 const REVIVE_NODE_ENDPOINT = "revive-node"
 //Once we exceed 10, we will declare it as a "permanent failure"
-const FAIL_THRESHOLD = 10
 
 type NodeInfo struct {
 	id string 
@@ -35,9 +34,16 @@ type StethoNode struct {
 
 	// {nodeID: numberOfTimesItHasFailed }
 	nodeStatuses map[string]int
+	failThreshold int
 }
 
 func (s *StethoNode) addNode(nodeID string, nodeAddr string){
+
+	if _, ok := s.nodeStatuses[nodeID]; ok {
+		fmt.Printf("[STETHO] Node %s already exists in Stetho's record. Will not duplicate.\n")
+		return
+	}
+
 	s.nodeStatuses[nodeID] = 0
  	s.nodeInfoArray = append(s.nodeInfoArray, NodeInfo{
 		id:  nodeID,
@@ -100,10 +106,10 @@ func (s *StethoNode) handleFailedNode(nodeID string){
 		s.faintNode(nodeID)
 		s.nodeStatuses[nodeID] +=1
 
-	} else if s.nodeStatuses[nodeID] < 10{
+	} else if s.nodeStatuses[nodeID] < s.failThreshold{
 		//the case for 1 - 9
 		s.nodeStatuses[nodeID] +=1
-	} else if s.nodeStatuses[nodeID] >= 10 {
+	} else if s.nodeStatuses[nodeID] >= s.failThreshold {
 		s.removeNode(nodeID)
 	}
 	fmt.Println(s.nodeStatuses)
@@ -117,8 +123,6 @@ func (s *StethoNode) faintNode(nodeId string){
 func (s *StethoNode) removeNode(nodeId string) {
 	log.Printf("[Stetho] Removing [Node %s] due to perm failure \n", nodeId)
 	delete(s.nodeStatuses, nodeId)
-	//TODO: Delete element from list
-	log.Println(s.nodeInfoArray)
 	//TODO: need to make sure i do not append duplicates
 	for i, nodeInfo := range s.nodeInfoArray {
 		if nodeInfo.id == nodeId {
@@ -126,9 +130,11 @@ func (s *StethoNode) removeNode(nodeId string) {
 			break
 		}
 	}
-	log.Println(s.nodeInfoArray)
-	s.postToRingServer(nodeId, REMOVE_NODE_ENDPOINT)
-
+	log.Println("After Removing: ", s.nodeInfoArray)
+	_, err := s.postToRingServer(nodeId, REMOVE_NODE_ENDPOINT)
+	if err != nil {
+		log.Println(err)
+	}
 }
 
 //func (s *StethoNode) reviveNode(nodeId string) {
@@ -140,6 +146,7 @@ func (s *StethoNode) removeNode(nodeId string) {
 func (s *StethoNode) postToRingServer(nodeId string, endpoint string) ([]byte, error){
 	//REVIVE, FAINT, REMOVE
 	postUrl := fmt.Sprintf("http://%s/%s", s.ringAddr, endpoint)
+	log.Println(postUrl)
 	requestBody, err := json.Marshal(map[string]string {
 		//TODO: don't hardcode it
 		"nodeId": nodeId,
@@ -270,7 +277,7 @@ func (s *StethoNode) Start(){
 
 }
 
-func NewStethoServer(port string, numSeconds int, timeoutSeconds int) StethoNode {
+func NewStethoServer(port string, numSeconds int, timeoutSeconds int, failThreshold int) StethoNode {
 	client := http.Client{Timeout:time.Duration(time.Duration(timeoutSeconds) * time.Second)}
 
 	nodeInfoArray := []NodeInfo{}
@@ -278,7 +285,7 @@ func NewStethoServer(port string, numSeconds int, timeoutSeconds int) StethoNode
 	nodeStatuses := map[string] int {}
 
 	return StethoNode{client, nodeInfoArray,
-		ringServer, port, numSeconds, nodeStatuses}
+		ringServer, port, numSeconds, nodeStatuses, failThreshold}
 
 
 }

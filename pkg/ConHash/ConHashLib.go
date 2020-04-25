@@ -111,6 +111,7 @@ const RING_URL = "10.12.7.122:5001"
 
 
 func (r *Ring) RegisterNodes(nodeDataArray []NodeData) []NodeData{
+	fmt.Println("Registering...")
 	ret := []NodeData{}
 	for _, nd := range nodeDataArray {
 		for {
@@ -125,6 +126,7 @@ func (r *Ring) RegisterNodes(nodeDataArray []NodeData) []NodeData{
 
 		}
 	}
+	fmt.Println("Done Registering...")
 	return ret
 }
 

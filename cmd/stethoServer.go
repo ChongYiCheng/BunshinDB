@@ -8,8 +8,9 @@ import (
 func main() {
 	const PING_INTERVAL = 1
 	const TIMEOUT_INTERVAL = 1
+	const FAILURE_THRESHOLD = 3
 
 	fmt.Println("Stetho running...")
-	s:= ServerUtils.NewStethoServer("5000", PING_INTERVAL, TIMEOUT_INTERVAL)
+	s:= ServerUtils.NewStethoServer("5000", PING_INTERVAL, TIMEOUT_INTERVAL, FAILURE_THRESHOLD)
 	s.Start()
 }
