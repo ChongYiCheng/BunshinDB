@@ -365,23 +365,24 @@ func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
                     if replicaNodeData.CName != node.CName{
                         //Need to pay attention to this when debugging
                         //TODO: Hinted handoff comes in here. Check if faint.
-                        statusOfReplica := node.Ring.NodeStatuses[replicaNodeData.ID]
-                        if statusOfReplica == false{
-                            fmt.Println("Go into Hinted Handoff")
-                            // fmt.Printf("Key: %s\n",key)
-                            // fmt.Printf("Cart Data: %v\n",cartData)
-                            replicaNodeHash := replicaNodeData.Hash
-                            node.RunHintedHandOff(replicaNodeHash,key,[]byte(clientCartBytes))
-                            node.CheckHintedHandOff()
-                            //Save into HintedHandoff
-                        }else{
-                            go func(rData ConHash.NodeData, replicationPointer *int) {
-                                replicaNodeDataUrl := fmt.Sprintf("%s:%s",rData.IP,rData.Port)
-                                node.HttpClientReq(writeMsg,replicaNodeDataUrl,"put",wChannel)
-                                <-wChannel
-                                *replicationPointer = *replicationPointer + 1
-                            }(replicaNodeData,repPointer)
-                        }
+                        // statusOfReplica := node.Ring.NodeStatuses[replicaNodeData.ID]
+                        fmt.Printf("NodeStatuses is %v\n",node.Ring.NodeStatuses)
+                        // if statusOfReplica == false{
+                        //     fmt.Println("Go into Hinted Handoff")
+                        //     // fmt.Printf("Key: %s\n",key)
+                        //     // fmt.Printf("Cart Data: %v\n",cartData)
+                        //     replicaNodeHash := replicaNodeData.Hash
+                        //     node.RunHintedHandOff(replicaNodeHash,key,[]byte(clientCartBytes))
+                        //     node.CheckHintedHandOff()
+                        //     //Save into HintedHandoff
+                        // }else{}
+                        go func(rData ConHash.NodeData, replicationPointer *int) {
+                            replicaNodeDataUrl := fmt.Sprintf("%s:%s",rData.IP,rData.Port)
+                            node.HttpClientReq(writeMsg,replicaNodeDataUrl,"put",wChannel)
+                            <-wChannel
+                            *replicationPointer = *replicationPointer + 1
+                        }(replicaNodeData,repPointer)
+
 
                         //1. Obtain replica node hash
                         //2. Check status on ring

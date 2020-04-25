@@ -252,22 +252,22 @@ func NewRingServer(conRing ConHash.Ring, stethoUrl string, port string) RingServ
 
  func (ringServer *RingServer) updateRing(){
  	fmt.Println("Call update ring")
-	// for _, nodeData := range ringServer.ring.RingNodeDataArray{
-	// 	//TODO: investigate why url is empty
-	// 	if nodeData.IP == "" || nodeData.ID[len(nodeData.ID) - 1] != '0' {
-	// 		continue
-	// 	}
-	// 	nodeUrl := fmt.Sprintf("%s:%s", nodeData.IP, nodeData.Port)
-	// 	postUrl := fmt.Sprintf("http://%s/%s", nodeUrl, NEW_RING_ENDPOINT)
-	// 	fmt.Printf("Sending New Ring to Node %s at %s \n", nodeData.ID, postUrl)
-	// 	requestBody, err := json.Marshal(ringServer.ring)
-	// 	if err != nil {
-	// 		fmt.Println(err)
-	// 		return
-	// 	}
-	// 	go http.Post(postUrl, "application/json", bytes.NewBuffer(requestBody))
+	for _, nodeData := range ringServer.ring.RingNodeDataArray{
+		//TODO: investigate why url is empty
+		if nodeData.IP == "" || nodeData.ID[len(nodeData.ID) - 1] != '0' {
+			continue
+		}
+		nodeUrl := fmt.Sprintf("%s:%s", nodeData.IP, nodeData.Port)
+		postUrl := fmt.Sprintf("http://%s/%s", nodeUrl, NEW_RING_ENDPOINT)
+		fmt.Printf("Sending New Ring to Node %s at %s \n", nodeData.ID, postUrl)
+		requestBody, err := json.Marshal(ringServer.ring)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		go http.Post(postUrl, "application/json", bytes.NewBuffer(requestBody))
 
-	// }
+	}
 }
 
 func main(){
