@@ -146,7 +146,7 @@ func (s *StethoNode) postToRingServer(nodeId string, endpoint string) ([]byte, e
 	})
 
 	if err != nil {
-		log.Fatalln(err)
+		log.Println(err)
 	}
 
 	//TODO: Explore refactoring the below lines
@@ -159,7 +159,7 @@ func (s *StethoNode) postToRingServer(nodeId string, endpoint string) ([]byte, e
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		log.Fatalln(err)
+		log.Println(err)
 	}
 
 	return body, err
@@ -248,7 +248,7 @@ func (s *StethoNode) AddNodeHandler(w http.ResponseWriter, r *http.Request) {
 
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		panic(err)
+		log.Println(err)
 	}
 	//log.Println(string(body))
 
@@ -256,7 +256,7 @@ func (s *StethoNode) AddNodeHandler(w http.ResponseWriter, r *http.Request) {
 	err = json.Unmarshal(body, &payload)
 
 	if err != nil {
-		log.Fatalln(err)
+		log.Println(err)
 	}
 	s.addNode(payload["nodeID"], payload["nodeUrl"])
 	log.Println("[STETHO] After receiving the post request ", s.nodeInfoArray)
