@@ -162,7 +162,25 @@ func (ringServer RingServer) GetRingHandler(w http.ResponseWriter, r *http.Reque
 		prevPos = i
 	}
 	size := ringServer.ring.MaxID
+	if len(segments) == 0 {
 
+		output := GetRingOutput{
+			Segments: segments,
+			Size:     ringServer.ring.MaxID,
+		}
+
+		body, err := json.Marshal(output)
+		if err != nil {
+			log.Println(err)
+		}
+		_, err = w.Write(body)
+
+		if err != nil {
+			log.Println(err)
+		}
+
+		return
+	}
 	segments[0].PosRange[0] = segments[len(segments)-1].PosRange[1]
 	segments[0].Length = size - segments[0].PosRange[0] + segments[0].PosRange[1]
 
