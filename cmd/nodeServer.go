@@ -351,37 +351,44 @@ func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
                     SenderIP:node.IP,SenderPort:node.Port,Data:cartData,
                 }
                 otherReplicas := []ConHash.NodeData{}
-
-
+                fmt.Println("INVALID ITEM COMING *********************")
+                fmt.Printf("%v\n",ring.RingNodeDataArray[12452])
+                //fmt.Printf("RingNodeDataArray: %v\n",ring.RingNodeDataArray)
+                fmt.Printf("RingNodeDataArray[dstNodeHash]: %v\n",ring.RingNodeDataArray[dstNodeHash])
+                fmt.Printf("NodePrefList: %v\n",ring.NodePrefList)
                 otherReplicas = append(otherReplicas,ring.RingNodeDataArray[dstNodeHash])
+                //otherReplicas = append(otherReplicas,ring.NodePrefList[dstNodeHash])
                 otherReplicas = append(otherReplicas,ring.NodePrefList[dstNodeHash]...)
                 var successfulReplications = 0
                 var repPointer = &successfulReplications
 
                 wChannel := make(chan Message)
                 //This sends to the other replica
+                fmt.Printf("Other Replicas : %v\n",otherReplicas)
                 for _,replicaNodeData := range otherReplicas{
                     fmt.Printf("ReplicaNodeData is %v\n",replicaNodeData)
                     if replicaNodeData.CName != node.CName{
                         //Need to pay attention to this when debugging
                         //TODO: Hinted handoff comes in here. Check if faint.
-                        // statusOfReplica := node.Ring.NodeStatuses[replicaNodeData.ID]
-                        fmt.Printf("NodeStatuses is %v\n",node.Ring.NodeStatuses)
-                        // if statusOfReplica == false{
-                        //     fmt.Println("Go into Hinted Handoff")
-                        //     // fmt.Printf("Key: %s\n",key)
-                        //     // fmt.Printf("Cart Data: %v\n",cartData)
-                        //     replicaNodeHash := replicaNodeData.Hash
-                        //     node.RunHintedHandOff(replicaNodeHash,key,[]byte(clientCartBytes))
-                        //     node.CheckHintedHandOff()
-                        //     //Save into HintedHandoff
-                        // }else{}
-                        go func(rData ConHash.NodeData, replicationPointer *int) {
-                            replicaNodeDataUrl := fmt.Sprintf("%s:%s",rData.IP,rData.Port)
-                            node.HttpClientReq(writeMsg,replicaNodeDataUrl,"put",wChannel)
-                            <-wChannel
-                            *replicationPointer = *replicationPointer + 1
-                        }(replicaNodeData,repPointer)
+                        //Get status of dest node
+                        statusOfReplica := node.Ring.NodeStatuses[replicaNodeData.ID]
+                        if statusOfReplica == false{
+                            fmt.Println("Go into Hinted Handoff")
+                            // fmt.Printf("Key: %s\n",key)
+                            // fmt.Printf("Cart Data: %v\n",cartData)
+                            replicaNodeHash := replicaNodeData.Hash
+                            node.RunHintedHandOff(replicaNodeHash,key,[]byte(clientCartBytes))
+                            node.CheckHintedHandOff()
+                            //Save into HintedHandoff
+                        }else{
+                            go func(rData ConHash.NodeData, replicationPointer *int) {
+                                replicaNodeDataUrl := fmt.Sprintf("%s:%s",rData.IP,rData.Port)
+                                node.HttpClientReq(writeMsg,replicaNodeDataUrl,"put",wChannel)
+                                <-wChannel
+                                *replicationPointer = *replicationPointer + 1
+                            }(replicaNodeData,repPointer)
+                        }
+
 
 
                         //1. Obtain replica node hash
@@ -390,6 +397,8 @@ func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
                         //Else if alive, send to client
                         //Else(most likely is an error where cannot find the node(removed from ring))
   
+                    }else{
+                        fmt.Println("Skip cause ownself")
                     }
                 }
                 //close(wChannel)
