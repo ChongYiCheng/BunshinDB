@@ -51,9 +51,11 @@ func (ringServer *RingServer) AddNodeHandler(w http.ResponseWriter, r *http.Requ
 	nodeID := phyNode.ID
 	nodeUrl := fmt.Sprintf("%s:%s", phyNode.IP, phyNode.Port)
 
+
 	actualNodeDataArray := ringServer.ring.RegisterNodes(nodeDataArray)
 	fmt.Printf("Actual Node Data Array Registered %s", actualNodeDataArray)
 
+	ringServer.ring.NodeStatuses[nodeID] = true
 	ringServer.RegisterNodeWithStetho(nodeID, nodeUrl)
 	ringServer.updateRing()
 }
