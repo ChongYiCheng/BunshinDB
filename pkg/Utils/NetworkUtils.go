@@ -3,6 +3,7 @@ package Utils
 import (
 	"errors"
 	"net"
+	"net/http"
 )
 
 func ExternalIP() (string, error) {
@@ -40,4 +41,8 @@ func ExternalIP() (string, error) {
 		}
 	}
 	return "", errors.New("are you connected to the network?")
+}
+
+func EnableCors(w *http.ResponseWriter) {
+	(*w).Header().Set("Access-Control-Allow-Origin", "*")
 }

@@ -19,6 +19,6 @@ func main() {
 	ring := ConHash.NewRing(MAX_KEY,REPLICATION_FACTOR,RW_FACTOR)
 
 	ringServer := ServerUtils.NewRingServer(*ring, STETHO_URL, RING_SERVER_PORT)
-	ringServer.RegisterWithStetho(STEHO_SERVER_PORT, REGISTER_ENDPOINT)
+	ringServer.RegisterWithStetho(RING_SERVER_PORT, REGISTER_ENDPOINT)
 	ringServer.Start()
 }
