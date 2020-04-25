@@ -31,6 +31,7 @@ func (ringServer *RingServer) HttpServerStart(){
 	http.HandleFunc("/revive-node", ringServer.ReviveNodeHandler)
 	http.HandleFunc("/get-node", ringServer.GetNodeHandler)
 	http.HandleFunc("/hb", ringServer.HeartBeatHandler)
+	http.HandleFunc("/get-ring", ringServer.GetRingHandler)
 	log.Print(fmt.Sprintf("[RingServer] Started and Listening at %s:%s.", ringServer.ip, ringServer.port))
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", "5001"), nil))
 }
@@ -123,11 +124,22 @@ func (ringServer *RingServer) ReviveNodeHandler(w http.ResponseWriter, r *http.R
 }
 
 
+func (ringServer RingServer) GetRingHandler(w http.ResponseWriter, r *http.Request) {
+	//Marshal into json and then return
+	body, err := json.Marshal(map[string]string {
+		//TODO: don't hardcode it
+		"hello": "world",
+	})
 
+	if err != nil {
+		log.Println(err)
+	}
+
+	w.Write(body)
+}
 
 func (ringServer RingServer) GetNodeHandler(w http.ResponseWriter, r *http.Request) {
-	//TODO: change this
-	ringServer.HeartBeatHandler(w, r)
+	//TODO: Implement this for stronger consistency gurantees
 }
 
 //TODO: Refactor this part
