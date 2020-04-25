@@ -50,6 +50,12 @@ func (client *Client) HttpClientReq(msg *Message,targetUrl string,endpoint strin
     res, err := httpClient.Do(req)
     if err != nil{
         fmt.Printf("Cannot reach server at %v\n",url)
+        unreachableUrl := targetUrl
+        for targetUrl == unreachableUrl{
+            rand.Seed(time.Now().Unix())
+            targetUrl = client.KnownNodeURLs[rand.Intn(len(client.KnownNodeURLs))]
+        }
+        go client.HttpClientReq(msg, targetUrl, endpoint)
         return
     }
     defer res.Body.Close()
@@ -68,8 +74,7 @@ func (client *Client) HttpClientReq(msg *Message,targetUrl string,endpoint strin
             //TODO Need to add semantic reconciliation handling case
             //Conflicting shopping cart versions, need to perform semantic reconciliation
             //and write back to coordinator
-
-
+            client.SemanticReconciliation(resMsg)
         } else{
             for k,v := range resMsg.Data{
                 var shoppingCart ShoppingCart.ShoppingCart
@@ -84,7 +89,7 @@ func (client *Client) HttpClientReq(msg *Message,targetUrl string,endpoint strin
     }
 }
 
-func (client *Client) semanticReconciliation(conflictedMessage Message){
+func (client *Client) SemanticReconciliation(conflictedMessage Message){
     //Need to collate list of conflicted shopping carts then merge them
     listOfConflictingCarts := []ShoppingCart.ShoppingCart{}
     msgData := conflictedMessage.Data
