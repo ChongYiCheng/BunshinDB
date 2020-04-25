@@ -401,7 +401,7 @@ func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
 func (node *Node) NewRingHandler(w http.ResponseWriter, r *http.Request) {
     //TODO update ring
     //Need a onUpdateRing function in conHash.go
-
+    log.Printf("[Node %s] Received new ring", node.ID)
     body, err := ioutil.ReadAll(r.Body)
     if err != nil {
         log.Fatalln(err)
