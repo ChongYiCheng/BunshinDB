@@ -365,7 +365,7 @@ func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
                     if replicaNodeData.CName != node.CName{
                         //Need to pay attention to this when debugging
                         //TODO: Hinted handoff comes in here. Check if faint.
-                        //statusOfReplica := node.Ring.NodeStatuses[replicaNodeData.ID]
+                        statusOfReplica := node.Ring.NodeStatuses[replicaNodeData.ID]
                         fmt.Printf("Status of replicas: %v\n",node.Ring.NodeStatuses)
                         if statusOfReplica == false{
                             fmt.Println("Go into Hinted Handoff")
@@ -375,14 +375,20 @@ func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
                             if err != nil {
                                 fmt.Println(err.Error())
                                 return
-    }
-                        }else{}
-                        go func(rData ConHash.NodeData, replicationPointer *int) {
-                            replicaNodeDataUrl := fmt.Sprintf("%s:%s",rData.IP,rData.Port)
-                            node.HttpClientReq(writeMsg,replicaNodeDataUrl,"put",wChannel)
-                            <-wChannel
-                            *replicationPointer = *replicationPointer + 1
-                        }(replicaNodeData,repPointer)
+                            }
+                            replicaNodeHash := replicaNodeData.Hash
+                            node.RunHintedHandOff(replicaNodeHash,cartDatainJSON)
+                            node.CheckHintedHandOff()
+                            //Save into HintedHandoff
+                        }else{
+                            go func(rData ConHash.NodeData, replicationPointer *int) {
+                                replicaNodeDataUrl := fmt.Sprintf("%s:%s",rData.IP,rData.Port)
+                                node.HttpClientReq(writeMsg,replicaNodeDataUrl,"put",wChannel)
+                                <-wChannel
+                                *replicationPointer = *replicationPointer + 1
+                            }(replicaNodeData,repPointer)
+                        }
+
                         
                         //1. Obtain replica node hash
                         //2. Check status on ring
@@ -426,7 +432,7 @@ func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
 func (node *Node) NewRingHandler(w http.ResponseWriter, r *http.Request) {
     //TODO update ring
     //Need a onUpdateRing function in conHash.go
-
+    fmt.Println("New Ring Handler activated")
     body, err := ioutil.ReadAll(r.Body)
     if err != nil {
         log.Fatalln(err)
@@ -441,6 +447,7 @@ func (node *Node) NewRingHandler(w http.ResponseWriter, r *http.Request) {
 
     node.Ring = &ring
     //TODO: Check hinted handoff db
+    fmt.Printf("New Node Status: %v\n",node.Ring.NodeStatuses)
 }
 
 func (node *Node) GetNodeHandler(w http.ResponseWriter, r *http.Request) {
@@ -605,6 +612,58 @@ func (node *Node) DeleteKey(Key string) error{
     return err
 }
 
+
+func (node *Node) RunHintedHandOff(replicaHash int, cartData []byte){
+    fmt.Printf("Replica Node Hash is %d\n",replicaHash)
+    hintedHandoff := map[string][]byte{strconv.Itoa(replicaHash):cartData}
+    node.UpdateHH(hintedHandoff)
+    fmt.Println("Viewing HintedHandoff Queue")
+    //node.ViewHH()
+}
+func (node *Node) CheckHintedHandOff(){
+    hhMap := node.HHDBtoMap()
+    ring := node.Ring
+    wChannel := make(chan Message)
+    for hash, _ := range(hhMap){
+        replicaHash,err := strconv.Atoi(hash)
+        if err != nil{
+            fmt.Println("Hash conversion failed")
+        }else{
+            replicaData:= ring.RingNodeDataArray[replicaHash]
+            //Check if nodestatus is alive. If alive send If not skip
+            //Assume not alive and then we send from here.
+            fmt.Printf("Replica Node Data of Hinted Handoff: %v\n",replicaData)
+            // replicaNodeDataUrl := fmt.Sprintf("%s:%s",rData.IP,rData.Port)
+            // node.HttpClientReq(writeMsg,replicaNodeDataUrl,"put",wChannel)
+            // <-wChannel
+            }   
+    }
+}
+func (node *Node) HHDBtoMap() map[string][]byte {
+    db := node.HHQueue
+    hhQueue := make(map[string][]byte)
+    err := db.View(func(txn *badger.Txn) error {
+        opts := badger.DefaultIteratorOptions
+        opts.PrefetchSize = 10
+        it := txn.NewIterator(opts)
+        defer it.Close()
+        for it.Rewind(); it.Valid(); it.Next() {
+        item := it.Item()
+        k := item.Key()
+        err := item.Value(func(v []byte) error {
+            //fmt.Printf("key=%s, value=%s\n", k, v)
+            hhQueue[string(k)] = v
+            return nil
+        })
+        if err != nil {
+            return err
+        }
+        }
+        return nil
+    })
+    handle(err)
+    return hhQueue
+}
 func (node *Node) UpdateHH(update map[string][]byte) error{
     db := node.HHQueue
     txn := db.NewTransaction(true)
@@ -618,7 +677,80 @@ func (node *Node) UpdateHH(update map[string][]byte) error{
     err := txn.Commit()
     return err
 }
+func (node *Node) ViewHH(){
+    db := node.HHQueue
+	err := db.View(func(txn *badger.Txn) error {
+	  opts := badger.DefaultIteratorOptions
+	  opts.PrefetchSize = 10
+	  it := txn.NewIterator(opts)
+	  defer it.Close()
+	  for it.Rewind(); it.Valid(); it.Next() {
+	    item := it.Item()
+	    k := item.Key()
+	    err := item.Value(func(v []byte) error {
+	      fmt.Printf("key=%s, value=%s\n", k, v)
+	      return nil
+	    })
+	    if err != nil {
+	      return err
+	    }
+	  }
+	  return nil
+	})
+    handle(err)
+}
 
+
+func (node *Node) QueryHH(queryKey string) (map[string][]byte,error){
+	var outputVal []byte
+    var valCopy []byte
+    db := node.HHQueue
+	err := db.View(func(txn *badger.Txn) error {
+	item, err := txn.Get([]byte(queryKey))
+    if err!=nil{
+        glog.Error(err)
+	    return err
+    }
+
+	//var valCopy []byte
+	err = item.Value(func(val []byte) error {
+	// This func with val would only be called if item.Value encounters no error.
+
+	// Copying or parsing val is valid.
+	valCopy = append([]byte{}, val...)
+
+	return nil
+	})
+
+    if err!=nil{
+        glog.Error(err)
+	    return err
+    }
+
+	// You must copy it to use it outside item.Value(...).
+	fmt.Printf("The answer is: %s\n", valCopy)
+
+	return nil
+	})
+
+    outputVal = valCopy
+    output := make(map[string][]byte)
+    output[queryKey]=outputVal
+	return output, err
+}
+
+func (node *Node) DeleteHHKey(Key string) error{
+    db := node.HHQueue
+	err := db.Update(func(txn *badger.Txn) error {
+	err := txn.Delete([]byte(Key))
+	if err!=nil{
+        return err
+    }
+
+	return nil
+	})
+    return err
+}
 func (node *Node) runCommand(commandStr string) error {
     // To-Do : Add a command to view node's attributes and variables
 	commandStr = strings.TrimSuffix(commandStr, "\n")

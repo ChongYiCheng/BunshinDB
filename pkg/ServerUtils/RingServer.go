@@ -217,7 +217,7 @@ func NewRingServer(conRing ConHash.Ring, stethoUrl string, port string) RingServ
 }
 
  func (ringServer *RingServer) updateRing(){
- 	fmt.Printf("call update ring")
+ 	fmt.Println("Call update ring")
 	for _, nodeData := range ringServer.ring.RingNodeDataArray{
 		//TODO: investigate why url is empty
 		if nodeData.IP == "" || nodeData.ID[len(nodeData.ID) - 1] != '0' {
