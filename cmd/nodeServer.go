@@ -401,12 +401,11 @@ func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
 func (node *Node) NewRingHandler(w http.ResponseWriter, r *http.Request) {
     //TODO update ring
     //Need a onUpdateRing function in conHash.go
-
+    fmt.Printf("[Node %s] New Ring Called \n", node.ID)
     body, err := ioutil.ReadAll(r.Body)
     if err != nil {
         log.Fatalln(err)
     }
-
     var ring ConHash.Ring
     err = json.Unmarshal(body, &ring)
 
@@ -415,6 +414,7 @@ func (node *Node) NewRingHandler(w http.ResponseWriter, r *http.Request) {
     }
 
     node.Ring = &ring
+    fmt.Println("RIIIING", node.Ring)
 }
 
 func (node *Node) GetNodeHandler(w http.ResponseWriter, r *http.Request) {
@@ -845,6 +845,7 @@ func main(){
     }
 
     searchKey := "testing"
+    //TODO: Allocate key needs an endpoint too?
     nodeHash, addr, err := demoRing.AllocateKey(searchKey)
     if err == nil {
 		fmt.Printf("Key [%s] found at node %s with ip [%s] \n",searchKey, demoRing.RingNodeDataArray[nodeHash].ID,addr)
@@ -853,6 +854,7 @@ func main(){
 	}
 
     go node.Start()
+
     time.Sleep(time.Duration(WARMUP_DURATION) * time.Second)
     //Important to put registration after start. So that if the server fails early,
     //it should not register

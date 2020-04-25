@@ -2,7 +2,6 @@ package main
 
 //merkleTree Playground code
 import (
-	"bytes"
 	"crypto/sha256"
 	"fmt"
 	"log"
@@ -41,6 +40,7 @@ func main() {
 
 	copy(list2, list1)
 	list2[3] = TestContent{x:"Holb"}
+	list2[0] = TestContent{x:"hel"}
 
 	//Create a new Merkle Tree from the list1 of Content
 	t1, err := merkletree.NewTree(list1)
@@ -55,55 +55,9 @@ func main() {
 
 	mr1 := t1.MerkleRootNode()
 	mr2 := t2.MerkleRootNode()
-	discrepancies := compareTwoTrees(mr1, mr2)
+	discrepancies := merkletree.CompareTwoTrees(mr1, mr2)
 
 	fmt.Println(discrepancies)
 
-	//Get the Merkle Root of the tree
-	//mr := t.MerkleRoot()
-	//log.Println(mr)
-	//
-	////Verify the entire tree (hashes for each node) is valid
-	//vt, err := t.VerifyTree()
-	//if err != nil {
-	//	log.Fatal(err)
-	//}
-	//log.Println("Verify Tree: ", vt)
-	//
-	////Verify a specific content in in the tree
-	//vc, err := t.VerifyContent(list1[0])
-	//if err != nil {
-	//	log.Fatal(err)
-	//}
-	//
-	//
-	//log.Println("Verify Content: ", vc)
-	//
-	////String representation
-	//log.Println(t)
 }
 
-func compareTwoTrees(root1 *merkletree.Node, root2 *merkletree.Node) [][]merkletree.Content {
-	discrepancies := [][]merkletree.Content{}
-	compareTwoNodes(root1, root2, &discrepancies)
-
-	return discrepancies
-}
-
-func compareTwoNodes(node1 *merkletree.Node, node2 *merkletree.Node, discrepancies *[][]merkletree.Content) {
-	fmt.Println(node1, node2)
-	if node1.IsLeaf() || node2.IsLeaf() {
-		fmt.Println("CONTENTTTT ", node1.C, node2.C)
-		if bytes.Compare(node1.Hash, node2.Hash) != 0 {
-			newEntry := []merkletree.Content{node1.C, node2.C}
-			*discrepancies = append(*discrepancies, newEntry)
-		}
-	}else if bytes.Compare(node1.Hash, node2.Hash) == 0 {
-		fmt.Println("Equal")
-		return
-	} else {
-		fmt.Println("Not Equal")
-		compareTwoNodes(node1.Left, node2.Left, discrepancies)
-		compareTwoNodes(node1.Right, node2.Right, discrepancies)
-	}
-}
