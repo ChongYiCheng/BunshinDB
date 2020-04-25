@@ -256,7 +256,7 @@ func NewRingServer(conRing ConHash.Ring, stethoUrl string, port string) RingServ
 		if nodeData.IP == "" || nodeData.ID[len(nodeData.ID) - 1] != '0' {
 			continue
 		}
-		nodeUrl := fmt.Sprintf("http://%s:%s", nodeData.IP, nodeData.Port)
+		nodeUrl := fmt.Sprintf("%s:%s", nodeData.IP, nodeData.Port)
 		postUrl := fmt.Sprintf("http://%s/%s", nodeUrl, NEW_RING_ENDPOINT)
 		fmt.Printf("Sending New Ring to Node %s at %s \n", nodeData.ID, postUrl)
 		requestBody, err := json.Marshal(ringServer.ring)
