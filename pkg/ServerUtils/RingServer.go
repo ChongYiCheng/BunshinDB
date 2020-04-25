@@ -19,6 +19,15 @@ type RingServer struct {
 	port string
 }
 
+type RingVisualSegment struct {
+	ID    string
+	CName string
+	//A list with 2 element [p1, p2] refers to a range of (p1, p2]
+	PosRange [2]int
+	//Length = PosRange[1] - PosRange[0]
+	Length int
+}
+
 const ADD_NODE_URL = "add-node"
 const RING_SERVER_PORT = "5001"
 const NEW_RING_ENDPOINT = "new-ring"
@@ -128,20 +137,33 @@ func (ringServer *RingServer) ReviveNodeHandler(w http.ResponseWriter, r *http.R
 
 func (ringServer RingServer) GetRingHandler(w http.ResponseWriter, r *http.Request) {
 	//Marshal into json and then return
-	body, err := json.Marshal(map[string]string {
-		//TODO: don't hardcode it
-		"hello": "world",
-	})
+	//body, err := json.Marshal(ringServer.ring)
+	ret := []RingVisualSegment{}
+	var prevPos int
+	for i, nodeData := range ringServer.ring.RingNodeDataArray {
+		if nodeData.ID == "" {continue}
+		newRVS := RingVisualSegment{
+			ID:       nodeData.ID,
+			CName:    nodeData.CName,
+			PosRange: [2]int{prevPos, i},
+			Length:   i - prevPos,
+		}
+		ret = append(ret, newRVS)
+		prevPos = i
+	}
 
+	fmt.Println(ret)
+
+	body, err := json.Marshal(ret)
 	if err != nil {
 		log.Println(err)
 	}
-
-	w.Write(body)
+	i, err := w.Write(body)
+	fmt.Println(i)
 }
 
 func (ringServer RingServer) GetNodeHandler(w http.ResponseWriter, r *http.Request) {
-	//TODO: Implement this for stronger consistency gurantees
+	//TODO: Implement this for stronger consistency gurantees - but is anybody even calling it
 }
 
 //TODO: Refactor this part
@@ -160,11 +182,11 @@ func (ringServer *RingServer) Start(){
 	ringServer.HttpServerStart()
 }
 
-func (ringServer RingServer) RegisterWithStetho( endpoint string) {
+func (ringServer RingServer) RegisterWithStetho(ringServerUrl string, endpoint string) {
 	postUrl := fmt.Sprintf("%s/%s", ringServer.stethoUrl, endpoint)
 	requestBody, err := json.Marshal(map[string]string {
 		//TODO: don't hardcode it
-		"ringPort": "5001",
+		"ringPort": ringServerUrl,
 	})
 
 	if err != nil {
