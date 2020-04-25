@@ -57,9 +57,32 @@ func (s *StethoNode) SetRing(ringAddr string){
 	s.ringAddr = ringAddr
 }
 
-//TODO: Can explore making ping() async. Ping shall be synchronous for now.
-func (s *StethoNode) ping(){
-	time.Sleep(time.Duration(5 * time.Second))
+func (s *StethoNode) ping(nodeID string, urlString string){
+	resp, err := s.client.Get(urlString)
+	if err != nil {
+		log.Printf("[STETHO] Failed to pingAll %s at %s because of error: %s", nodeID, urlString, err)
+		s.handleFailedNode(nodeID)
+	} else {
+
+		if resp.StatusCode == 200{
+			//success case
+			if s.nodeStatuses[nodeID] > 0 {
+				//	fainted - now we revive
+				s.nodeStatuses[nodeID] = 0 //reset
+				fmt.Printf("[STETHO] Node %s has revived! \n", nodeID)
+				go s.postToRingServer(nodeID, REVIVE_NODE_ENDPOINT)
+
+			}
+			//TODO: put one more if else here add call revive-node conditionally
+			fmt.Printf("[STETHO] Node %s is alive \n", nodeID )
+		}
+	}
+}
+
+
+//TODO: Can explore making pingAll() async. Ping shall be synchronous for now.
+func (s *StethoNode) pingAll(){
+	time.Sleep(time.Duration(1 * time.Second))
 	log.Print("Stetho is up and pinging")
 	for {
 		for _, nodeInfo := range(s.nodeInfoArray){
@@ -71,30 +94,8 @@ func (s *StethoNode) ping(){
 			//	node.CName, urlString))
 			log.Print(fmt.Sprintf("[STETHO] Pinging %s at %s", nodeID, urlString))
 
-			resp, err := s.client.Get(urlString)
+			go s.ping(nodeID, urlString)
 
-			//Fails for some reason
-			//TODO: need to be able to differentiate the type of failure such as timeout vs no host vs invalid port etc.
-			if err != nil {
-				log.Printf("[STETHO] Failed to ping %s at %s because of error: %s", nodeID, nodeAddr, err)
-				s.handleFailedNode(nodeID)
-			} else {
-
-				if resp.StatusCode == 200{
-					//success case
-					if s.nodeStatuses[nodeID] > 0 {
-						//	fainted - now we revive
-						s.nodeStatuses[nodeID] = 0 //reset
-						fmt.Printf("[STETHO] Node %s has revived! \n", nodeID)
-						s.postToRingServer(nodeID, REVIVE_NODE_ENDPOINT)
-
-					}
-					//TODO: put one more if else here add call revive-node conditionally
-					fmt.Printf("[STETHO] Node %s is alive \n", nodeID )
-				}
-			}
-
-			time.Sleep(time.Duration(time.Duration(s.pingIntervalSeconds) * time.Second))
 		}
 		time.Sleep(time.Duration(1 * time.Second))
 	}
@@ -117,7 +118,7 @@ func (s *StethoNode) handleFailedNode(nodeID string){
 
 func (s *StethoNode) faintNode(nodeId string){
 
-	s.postToRingServer(nodeId, FAINT_NODE_ENDPOINT)
+	go s.postToRingServer(nodeId, FAINT_NODE_ENDPOINT)
 }
 
 func (s *StethoNode) removeNode(nodeId string) {
@@ -131,10 +132,7 @@ func (s *StethoNode) removeNode(nodeId string) {
 		}
 	}
 	log.Println("After Removing: ", s.nodeInfoArray)
-	_, err := s.postToRingServer(nodeId, REMOVE_NODE_ENDPOINT)
-	if err != nil {
-		log.Println(err)
-	}
+	go s.postToRingServer(nodeId, REMOVE_NODE_ENDPOINT)
 }
 
 //func (s *StethoNode) reviveNode(nodeId string) {
@@ -143,7 +141,7 @@ func (s *StethoNode) removeNode(nodeId string) {
 //
 //}
 
-func (s *StethoNode) postToRingServer(nodeId string, endpoint string) ([]byte, error){
+func (s *StethoNode) postToRingServer(nodeId string, endpoint string){
 	//REVIVE, FAINT, REMOVE
 	postUrl := fmt.Sprintf("http://%s/%s", s.ringAddr, endpoint)
 	log.Println(postUrl)
@@ -157,19 +155,11 @@ func (s *StethoNode) postToRingServer(nodeId string, endpoint string) ([]byte, e
 	}
 
 	//TODO: Explore refactoring the below lines
-	resp, err := http.Post(postUrl, "application/json", bytes.NewBuffer(requestBody))
+	_, err = http.Post(postUrl, "application/json", bytes.NewBuffer(requestBody))
 	if err != nil {
 		log.Println("Check if Ring Server is up and running")
 		log.Println(err)
 	}
-	defer resp.Body.Close()
-
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		log.Println(err)
-	}
-
-	return body, err
 
 }
 
@@ -273,7 +263,7 @@ func (s *StethoNode) AddNodeHandler(w http.ResponseWriter, r *http.Request) {
 func (s *StethoNode) Start(){
 	go s.HttpServerStart()
 	//Not using a go routine here so that it blocks
-	s.ping()
+	s.pingAll()
 
 }
 
