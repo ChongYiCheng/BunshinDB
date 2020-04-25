@@ -3,6 +3,7 @@ package ServerUtils
 import (
 	"50.041-DistSysProject-BunshinDB/pkg/ConHash"
 	"50.041-DistSysProject-BunshinDB/pkg/ConHttp"
+	"50.041-DistSysProject-BunshinDB/pkg/Utils"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -26,6 +27,12 @@ type RingVisualSegment struct {
 	PosRange [2]int
 	//Length = PosRange[1] - PosRange[0]
 	Length int
+}
+
+type GetRingOutput struct {
+	Segments []RingVisualSegment
+	Size int
+
 }
 
 const ADD_NODE_URL = "add-node"
@@ -136,9 +143,11 @@ func (ringServer *RingServer) ReviveNodeHandler(w http.ResponseWriter, r *http.R
 
 
 func (ringServer RingServer) GetRingHandler(w http.ResponseWriter, r *http.Request) {
+	Utils.EnableCors(&w)
+
 	//Marshal into json and then return
 	//body, err := json.Marshal(ringServer.ring)
-	ret := []RingVisualSegment{}
+	segments := []RingVisualSegment{}
 	var prevPos int
 	for i, nodeData := range ringServer.ring.RingNodeDataArray {
 		if nodeData.ID == "" {continue}
@@ -148,18 +157,27 @@ func (ringServer RingServer) GetRingHandler(w http.ResponseWriter, r *http.Reque
 			PosRange: [2]int{prevPos, i},
 			Length:   i - prevPos,
 		}
-		ret = append(ret, newRVS)
+		segments = append(segments, newRVS)
 		prevPos = i
 	}
+	size := ringServer.ring.MaxID
 
-	fmt.Println(ret)
+	segments[0].PosRange[0] = segments[len(segments)-1].PosRange[1]
+	segments[0].Length = size - segments[0].PosRange[0] + segments[0].PosRange[1]
 
-	body, err := json.Marshal(ret)
+	output := GetRingOutput{
+		Segments: segments,
+		Size:     ringServer.ring.MaxID,
+	}
+
+	body, err := json.Marshal(output)
 	if err != nil {
 		log.Println(err)
 	}
-	i, err := w.Write(body)
-	fmt.Println(i)
+
+	//TODO: What is the first element returned by Write??
+	_, err = w.Write(body)
+
 }
 
 func (ringServer RingServer) GetNodeHandler(w http.ResponseWriter, r *http.Request) {
@@ -250,9 +268,8 @@ func NewRingServer(conRing ConHash.Ring, stethoUrl string, port string) RingServ
 }
 
  func (ringServer *RingServer) updateRing(){
- 	fmt.Printf("call update ring")
+ 	fmt.Printf("call update ring \n")
 	for _, nodeData := range ringServer.ring.RingNodeDataArray{
-		//TODO: investigate why url is empty
 		if nodeData.IP == "" || nodeData.ID[len(nodeData.ID) - 1] != '0' {
 			continue
 		}
