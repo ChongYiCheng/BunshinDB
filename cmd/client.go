@@ -181,8 +181,9 @@ under the Coordinator Node
 			data := map[string][]byte{key:value}
 			httpMsg.Data = data
 			fmt.Printf("httpMsg %s\n",httpMsg)
-			rand.Seed(time.Now().Unix())
-			targetUrl := client.KnownNodeURLs[rand.Intn(len(client.KnownNodeURLs))]
+            rand.Seed(time.Now().Unix())
+            //rand.Intn(len(client.KnownNodeURLs)) - we remove this from the below arg for testing purpose
+			targetUrl := client.KnownNodeURLs[0]
 			client.HttpClientReq(httpMsg,targetUrl,"put")
         default:
 		cmd := exec.Command(arrCommandStr[0], arrCommandStr[1:]...)

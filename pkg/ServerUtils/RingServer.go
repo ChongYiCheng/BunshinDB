@@ -19,6 +19,15 @@ type RingServer struct {
 	port string
 }
 
+type RingVisualSegment struct {
+	ID    string
+	CName string
+	//A list with 2 element [p1, p2] refers to a range of (p1, p2]
+	PosRange [2]int
+	//Length = PosRange[1] - PosRange[0]
+	Length int
+}
+
 const ADD_NODE_URL = "add-node"
 const RING_SERVER_PORT = "5001"
 const NEW_RING_ENDPOINT = "new-ring"
@@ -31,6 +40,7 @@ func (ringServer *RingServer) HttpServerStart(){
 	http.HandleFunc("/revive-node", ringServer.ReviveNodeHandler)
 	http.HandleFunc("/get-node", ringServer.GetNodeHandler)
 	http.HandleFunc("/hb", ringServer.HeartBeatHandler)
+	http.HandleFunc("/get-ring", ringServer.GetRingHandler)
 	log.Print(fmt.Sprintf("[RingServer] Started and Listening at %s:%s.", ringServer.ip, ringServer.port))
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", "5001"), nil))
 }
@@ -53,7 +63,7 @@ func (ringServer *RingServer) AddNodeHandler(w http.ResponseWriter, r *http.Requ
 
 
 	actualNodeDataArray := ringServer.ring.RegisterNodes(nodeDataArray)
-	fmt.Printf("Actual Node Data Array Registered %s", actualNodeDataArray)
+	fmt.Printf("Actual Node Data Array Registered %v", actualNodeDataArray)
 
 	ringServer.ring.NodeStatuses[nodeID] = true
 	ringServer.RegisterNodeWithStetho(nodeID, nodeUrl)
@@ -126,11 +136,35 @@ func (ringServer *RingServer) ReviveNodeHandler(w http.ResponseWriter, r *http.R
 }
 
 
+func (ringServer RingServer) GetRingHandler(w http.ResponseWriter, r *http.Request) {
+	//Marshal into json and then return
+	//body, err := json.Marshal(ringServer.ring)
+	ret := []RingVisualSegment{}
+	var prevPos int
+	for i, nodeData := range ringServer.ring.RingNodeDataArray {
+		if nodeData.ID == "" {continue}
+		newRVS := RingVisualSegment{
+			ID:       nodeData.ID,
+			CName:    nodeData.CName,
+			PosRange: [2]int{prevPos, i},
+			Length:   i - prevPos,
+		}
+		ret = append(ret, newRVS)
+		prevPos = i
+	}
 
+	fmt.Println(ret)
+
+	body, err := json.Marshal(ret)
+	if err != nil {
+		log.Println(err)
+	}
+	i, err := w.Write(body)
+	fmt.Println(i)
+}
 
 func (ringServer RingServer) GetNodeHandler(w http.ResponseWriter, r *http.Request) {
-	//TODO: change this
-	ringServer.HeartBeatHandler(w, r)
+	//TODO: Implement this for stronger consistency gurantees - but is anybody even calling it
 }
 
 //TODO: Refactor this part
@@ -149,11 +183,11 @@ func (ringServer *RingServer) Start(){
 	ringServer.HttpServerStart()
 }
 
-func (ringServer RingServer) RegisterWithStetho( endpoint string) {
+func (ringServer RingServer) RegisterWithStetho(ringServerUrl string, endpoint string) {
 	postUrl := fmt.Sprintf("%s/%s", ringServer.stethoUrl, endpoint)
 	requestBody, err := json.Marshal(map[string]string {
 		//TODO: don't hardcode it
-		"ringPort": "5001",
+		"ringPort": ringServerUrl,
 	})
 
 	if err != nil {
@@ -218,22 +252,22 @@ func NewRingServer(conRing ConHash.Ring, stethoUrl string, port string) RingServ
 
  func (ringServer *RingServer) updateRing(){
  	fmt.Println("Call update ring")
-	for _, nodeData := range ringServer.ring.RingNodeDataArray{
-		//TODO: investigate why url is empty
-		if nodeData.IP == "" || nodeData.ID[len(nodeData.ID) - 1] != '0' {
-			continue
-		}
-		nodeUrl := fmt.Sprintf("http://%s:%s", nodeData.IP, nodeData.Port)
-		postUrl := fmt.Sprintf("http://%s/%s", nodeUrl, NEW_RING_ENDPOINT)
-		fmt.Printf("Sending New Ring to Node %s at %s \n", nodeData.ID, postUrl)
-		requestBody, err := json.Marshal(ringServer.ring)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		go http.Post(postUrl, "application/json", bytes.NewBuffer(requestBody))
+	// for _, nodeData := range ringServer.ring.RingNodeDataArray{
+	// 	//TODO: investigate why url is empty
+	// 	if nodeData.IP == "" || nodeData.ID[len(nodeData.ID) - 1] != '0' {
+	// 		continue
+	// 	}
+	// 	nodeUrl := fmt.Sprintf("%s:%s", nodeData.IP, nodeData.Port)
+	// 	postUrl := fmt.Sprintf("http://%s/%s", nodeUrl, NEW_RING_ENDPOINT)
+	// 	fmt.Printf("Sending New Ring to Node %s at %s \n", nodeData.ID, postUrl)
+	// 	requestBody, err := json.Marshal(ringServer.ring)
+	// 	if err != nil {
+	// 		fmt.Println(err)
+	// 		return
+	// 	}
+	// 	go http.Post(postUrl, "application/json", bytes.NewBuffer(requestBody))
 
-	}
+	// }
 }
 
 func main(){
