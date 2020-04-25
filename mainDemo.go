@@ -329,13 +329,12 @@ func (node *Node) HttpClientReq(msg *Message,targetUrl string,endpoint string){
     // always close the response-body, even if content is not required
     if err != nil {
         fmt.Println("Unable to reach the server.")
-        if endpoint == "put"{
-            fmt.Println("Commencing hinted handoff")
-            node.UpdateHH(msg.Data)
-            node.CheckHH()
-            //node.ViewHH()
-        }
-
+        // if endpoint == "put"{
+        //     fmt.Println("Commencing hinted handoff")
+        //     node.UpdateHH(msg.Data)
+        //     node.CheckHH()
+        //     //node.ViewHH()
+        // }
     }else{
         fmt.Println("HTTP Client Req - Got a response")
         defer res.Body.Close()

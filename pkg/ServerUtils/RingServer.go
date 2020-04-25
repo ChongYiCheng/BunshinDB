@@ -74,6 +74,7 @@ func (ringServer *RingServer) FaintNodeHandler(w http.ResponseWriter, r *http.Re
 	if err != nil {
 		log.Println(err)
 	}
+	
 	ringServer.ring.NodeStatuses[payload["nodeId"]] = false
 	fmt.Println("New Status Map ", ringServer.ring.NodeStatuses)
 

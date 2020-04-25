@@ -53,7 +53,11 @@ func (node *Node) Start(){
     handle(err)
     defer db.Close()
     node.NodeDB = db
-
+    //TODO: Add a db for Hinted Handoff
+    hhQueue , hhErr := badger.Open(badger.DefaultOptions(node.DBPath+"/hhQueue"))
+    node.HHQueue = hhQueue
+    handle(hhErr)
+    defer hhQueue.Close()
     node.HttpServerStart()
 }
 
@@ -321,7 +325,7 @@ func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
                 }
             } else{
                 fmt.Println("Node is initiating W process")
-                fmt.Println("This is because the msg was sent by %s:%s\n",msg.SenderIP,msg.SenderPort)
+                fmt.Printf("This is because the msg was sent by %s:%s\n",msg.SenderIP,msg.SenderPort)
                 //This node has to take initiative to start the W process.
                 //var responseStatus string
                 //We need to convert the data back to a shopping cart structure
@@ -355,16 +359,37 @@ func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
                 var repPointer = &successfulReplications
 
                 wChannel := make(chan Message)
-
+                //This sends to the other replica
                 for _,replicaNodeData := range otherReplicas{
+                    fmt.Printf("ReplicaNodeData is %v\n",replicaNodeData)
                     if replicaNodeData.CName != node.CName{
                         //Need to pay attention to this when debugging
+                        //TODO: Hinted handoff comes in here. Check if faint.
+                        //statusOfReplica := node.Ring.NodeStatuses[replicaNodeData.ID]
+                        fmt.Printf("Status of replicas: %v\n",node.Ring.NodeStatuses)
+                        if statusOfReplica == false{
+                            fmt.Println("Go into Hinted Handoff")
+                            fmt.Printf("Key: %s\n",key)
+                            fmt.Printf("Cart Data: %v\n",cartData)
+                            cartDatainJSON, err := json.Marshal(cartData)   
+                            if err != nil {
+                                fmt.Println(err.Error())
+                                return
+    }
+                        }else{}
                         go func(rData ConHash.NodeData, replicationPointer *int) {
                             replicaNodeDataUrl := fmt.Sprintf("%s:%s",rData.IP,rData.Port)
                             node.HttpClientReq(writeMsg,replicaNodeDataUrl,"put",wChannel)
                             <-wChannel
                             *replicationPointer = *replicationPointer + 1
                         }(replicaNodeData,repPointer)
+                        
+                        //1. Obtain replica node hash
+                        //2. Check status on ring
+                        //If faint, run hinted handoff
+                        //Else if alive, send to client
+                        //Else(most likely is an error where cannot find the node(removed from ring))
+  
                     }
                 }
                 //close(wChannel)
@@ -415,6 +440,7 @@ func (node *Node) NewRingHandler(w http.ResponseWriter, r *http.Request) {
     }
 
     node.Ring = &ring
+    //TODO: Check hinted handoff db
 }
 
 func (node *Node) GetNodeHandler(w http.ResponseWriter, r *http.Request) {
@@ -579,6 +605,19 @@ func (node *Node) DeleteKey(Key string) error{
     return err
 }
 
+func (node *Node) UpdateHH(update map[string][]byte) error{
+    db := node.HHQueue
+    txn := db.NewTransaction(true)
+    for k,v := range update{
+      if err := txn.Set([]byte(k),[]byte(v)); err == badger.ErrTxnTooBig {
+        _ = txn.Commit()
+        txn = db.NewTransaction(true)
+        _ = txn.Set([]byte(k),[]byte(v))
+      }
+    }
+    err := txn.Commit()
+    return err
+}
 
 func (node *Node) runCommand(commandStr string) error {
     // To-Do : Add a command to view node's attributes and variables
