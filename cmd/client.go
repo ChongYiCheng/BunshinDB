@@ -48,6 +48,10 @@ func (client *Client) HttpClientReq(msg *Message,targetUrl string,endpoint strin
     req.Header.Set("Content-Type", "application/json")
 
     res, err := httpClient.Do(req)
+    if err != nil{
+        fmt.Printf("Cannot reach server at %v\n",url)
+        return
+    }
     defer res.Body.Close()
     fmt.Println("HTTP Client Req - Got a response")
 
