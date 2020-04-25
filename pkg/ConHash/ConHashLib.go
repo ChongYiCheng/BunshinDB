@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/dgraph-io/badger"
+	"math"
 )
 
 type Node struct{
@@ -111,20 +112,25 @@ const RING_URL = "192.168.1.142:5001"
 
 
 func (r *Ring) RegisterNodes(nodeDataArray []NodeData) []NodeData{
+	fmt.Println("Registering...")
 	ret := []NodeData{}
 	for _, nd := range nodeDataArray {
+		counter := 1
 		for {
-			//if occupied, we do linear probing
+			//Changed to something like quadratic probing that avoids clusterring better
 			if r.RingNodeDataArray[nd.Hash].ID != "" {
-				nd.Hash = (nd.Hash + 1) % len(nodeDataArray)
+				nd.Hash = int(math.Pow(float64(nd.Hash + counter), 2)) % r.MaxID
 			} else {
 				r.RingNodeDataArray[nd.Hash] = nd
 				ret = append(ret, nd)
 				break
 			}
 
+			counter +=1
+
 		}
 	}
+	fmt.Println("Done Registering...")
 	return ret
 }
 

@@ -3,6 +3,7 @@ package ServerUtils
 import (
 	"50.041-DistSysProject-BunshinDB/pkg/ConHash"
 	"50.041-DistSysProject-BunshinDB/pkg/ConHttp"
+	"50.041-DistSysProject-BunshinDB/pkg/Utils"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -26,6 +27,12 @@ type RingVisualSegment struct {
 	PosRange [2]int
 	//Length = PosRange[1] - PosRange[0]
 	Length int
+}
+
+type GetRingOutput struct {
+	Segments []RingVisualSegment
+	Size int
+
 }
 
 const ADD_NODE_URL = "add-node"
@@ -67,7 +74,7 @@ func (ringServer *RingServer) AddNodeHandler(w http.ResponseWriter, r *http.Requ
 
 	ringServer.ring.NodeStatuses[nodeID] = true
 	ringServer.RegisterNodeWithStetho(nodeID, nodeUrl)
-	ringServer.updateRing()
+	ringServer.onRingChange(true)
 }
 
 
@@ -89,7 +96,7 @@ func (ringServer *RingServer) FaintNodeHandler(w http.ResponseWriter, r *http.Re
 	ringServer.ring.NodeStatuses[payload["nodeId"]] = false
 	fmt.Println("New Status Map ", ringServer.ring.NodeStatuses)
 
-	ringServer.updateRing()
+	ringServer.onRingChange(false)
 
 }
 
@@ -108,11 +115,12 @@ func (ringServer *RingServer) RemoveNodeHandler(w http.ResponseWriter, r *http.R
 	if err != nil {
 		log.Println(err)
 	}
+	nodeId := payload["nodeId"]
+	delete(ringServer.ring.NodeStatuses, nodeId)
+	ringServer.removeNodeFromRing(string(nodeId[0]))
 
-	delete(ringServer.ring.NodeStatuses, payload["nodeId"])
-	//TODO: also remove from the actual ring...
 	fmt.Println("New Status Map ", ringServer.ring.NodeStatuses)
-	ringServer.updateRing()
+	ringServer.onRingChange(true)
 }
 
 func (ringServer *RingServer) ReviveNodeHandler(w http.ResponseWriter, r *http.Request) {
@@ -131,14 +139,16 @@ func (ringServer *RingServer) ReviveNodeHandler(w http.ResponseWriter, r *http.R
 	}
 
 	ringServer.ring.NodeStatuses[payload["nodeId"]] = true
-	ringServer.updateRing()
+	ringServer.onRingChange(false)
 }
 
 
 func (ringServer RingServer) GetRingHandler(w http.ResponseWriter, r *http.Request) {
+	Utils.EnableCors(&w)
+
 	//Marshal into json and then return
 	//body, err := json.Marshal(ringServer.ring)
-	ret := []RingVisualSegment{}
+	segments := []RingVisualSegment{}
 	var prevPos int
 	for i, nodeData := range ringServer.ring.RingNodeDataArray {
 		if nodeData.ID == "" {continue}
@@ -148,18 +158,45 @@ func (ringServer RingServer) GetRingHandler(w http.ResponseWriter, r *http.Reque
 			PosRange: [2]int{prevPos, i},
 			Length:   i - prevPos,
 		}
-		ret = append(ret, newRVS)
+		segments = append(segments, newRVS)
 		prevPos = i
 	}
+	size := ringServer.ring.MaxID
+	if len(segments) == 0 {
 
-	fmt.Println(ret)
+		output := GetRingOutput{
+			Segments: segments,
+			Size:     ringServer.ring.MaxID,
+		}
 
-	body, err := json.Marshal(ret)
+		body, err := json.Marshal(output)
+		if err != nil {
+			log.Println(err)
+		}
+		_, err = w.Write(body)
+
+		if err != nil {
+			log.Println(err)
+		}
+
+		return
+	}
+	segments[0].PosRange[0] = segments[len(segments)-1].PosRange[1]
+	segments[0].Length = size - segments[0].PosRange[0] + segments[0].PosRange[1]
+
+	output := GetRingOutput{
+		Segments: segments,
+		Size:     ringServer.ring.MaxID,
+	}
+
+	body, err := json.Marshal(output)
 	if err != nil {
 		log.Println(err)
 	}
-	i, err := w.Write(body)
-	fmt.Println(i)
+
+	//TODO: What is the first element returned by Write??
+	_, err = w.Write(body)
+
 }
 
 func (ringServer RingServer) GetNodeHandler(w http.ResponseWriter, r *http.Request) {
@@ -182,11 +219,11 @@ func (ringServer *RingServer) Start(){
 	ringServer.HttpServerStart()
 }
 
-func (ringServer RingServer) RegisterWithStetho(ringServerUrl string, endpoint string) {
+func (ringServer RingServer) RegisterWithStetho(ringServerPort string, endpoint string) {
 	postUrl := fmt.Sprintf("%s/%s", ringServer.stethoUrl, endpoint)
 	requestBody, err := json.Marshal(map[string]string {
 		//TODO: don't hardcode it
-		"ringPort": ringServerUrl,
+		"ringPort": ringServerPort,
 	})
 
 	if err != nil {
@@ -249,10 +286,20 @@ func NewRingServer(conRing ConHash.Ring, stethoUrl string, port string) RingServ
 	}
 }
 
- func (ringServer *RingServer) updateRing(){
- 	fmt.Printf("call update ring")
+func (ringServer *RingServer) onRingChange(shouldGenPrefList bool) {
+
+	if shouldGenPrefList {
+		fmt.Printf("Pref List BC: %s \n", ringServer.ring.NodePrefList)
+		ringServer.ring.GenPrefList()
+		fmt.Printf("Pref List AC: %s \n", ringServer.ring.NodePrefList)
+	}
+
+	ringServer.updateRing()
+}
+
+
+func (ringServer *RingServer) updateRing(){
 	for _, nodeData := range ringServer.ring.RingNodeDataArray{
-		//TODO: investigate why url is empty
 		if nodeData.IP == "" || nodeData.ID[len(nodeData.ID) - 1] != '0' {
 			continue
 		}
@@ -265,9 +312,25 @@ func NewRingServer(conRing ConHash.Ring, stethoUrl string, port string) RingServ
 			return
 		}
 		go http.Post(postUrl, "application/json", bytes.NewBuffer(requestBody))
-
 	}
+
+	fmt.Println("Done updating ring")
 }
+
+func (ringServer *RingServer) removeNodeFromRing(cName string) {
+	fmt.Println("[RingServer] Removing Node From Ring...")
+	for i, nodeData := range ringServer.ring.RingNodeDataArray{
+		if nodeData.CName == cName {
+			//Considered a deletion
+			fmt.Println("Deleting ", nodeData)
+			ringServer.ring.RingNodeDataArray[i] = ConHash.NodeData{}
+		}
+	}
+	fmt.Println("After removal: ", ringServer.ring.RingNodeDataArray)
+}
+
+
+
 
 func main(){
 	fmt.Println()

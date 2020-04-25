@@ -18,7 +18,6 @@ const FAINT_NODE_ENDPOINT = "faint-node"
 const REMOVE_NODE_ENDPOINT = "remove-node"
 const REVIVE_NODE_ENDPOINT = "revive-node"
 //Once we exceed 10, we will declare it as a "permanent failure"
-const FAIL_THRESHOLD = 10
 
 type NodeInfo struct {
 	id string 
@@ -35,9 +34,16 @@ type StethoNode struct {
 
 	// {nodeID: numberOfTimesItHasFailed }
 	nodeStatuses map[string]int
+	failThreshold int
 }
 
 func (s *StethoNode) addNode(nodeID string, nodeAddr string){
+
+	if _, ok := s.nodeStatuses[nodeID]; ok {
+		fmt.Printf("[STETHO] Node %s already exists in Stetho's record. Will not duplicate.\n")
+		return
+	}
+
 	s.nodeStatuses[nodeID] = 0
  	s.nodeInfoArray = append(s.nodeInfoArray, NodeInfo{
 		id:  nodeID,
@@ -51,9 +57,32 @@ func (s *StethoNode) SetRing(ringAddr string){
 	s.ringAddr = ringAddr
 }
 
-//TODO: Can explore making ping() async. Ping shall be synchronous for now.
-func (s *StethoNode) ping(){
-	time.Sleep(time.Duration(5 * time.Second))
+func (s *StethoNode) ping(nodeID string, urlString string){
+	resp, err := s.client.Get(urlString)
+	if err != nil {
+		log.Printf("[STETHO] Failed to pingAll %s at %s because of error: %s", nodeID, urlString, err)
+		s.handleFailedNode(nodeID)
+	} else {
+
+		if resp.StatusCode == 200{
+			//success case
+			if s.nodeStatuses[nodeID] > 0 {
+				//	fainted - now we revive
+				s.nodeStatuses[nodeID] = 0 //reset
+				fmt.Printf("[STETHO] Node %s has revived! \n", nodeID)
+				go s.postToRingServer(nodeID, REVIVE_NODE_ENDPOINT)
+
+			}
+			//TODO: put one more if else here add call revive-node conditionally
+			fmt.Printf("[STETHO] Node %s is alive \n", nodeID )
+		}
+	}
+}
+
+
+//TODO: Can explore making pingAll() async. Ping shall be synchronous for now.
+func (s *StethoNode) pingAll(){
+	time.Sleep(time.Duration(1 * time.Second))
 	log.Print("Stetho is up and pinging")
 	for {
 		for _, nodeInfo := range(s.nodeInfoArray){
@@ -65,30 +94,8 @@ func (s *StethoNode) ping(){
 			//	node.CName, urlString))
 			log.Print(fmt.Sprintf("[STETHO] Pinging %s at %s", nodeID, urlString))
 
-			resp, err := s.client.Get(urlString)
+			go s.ping(nodeID, urlString)
 
-			//Fails for some reason
-			//TODO: need to be able to differentiate the type of failure such as timeout vs no host vs invalid port etc.
-			if err != nil {
-				log.Printf("[STETHO] Failed to ping %s at %s because of error: %s", nodeID, nodeAddr, err)
-				s.handleFailedNode(nodeID)
-			} else {
-
-				if resp.StatusCode == 200{
-					//success case
-					if s.nodeStatuses[nodeID] > 0 {
-						//	fainted - now we revive
-						s.nodeStatuses[nodeID] = 0 //reset
-						fmt.Printf("[STETHO] Node %s has revived! \n", nodeID)
-						s.postToRingServer(nodeID, REVIVE_NODE_ENDPOINT)
-
-					}
-					//TODO: put one more if else here add call revive-node conditionally
-					fmt.Printf("[STETHO] Node %s is alive \n", nodeID )
-				}
-			}
-
-			time.Sleep(time.Duration(time.Duration(s.pingIntervalSeconds) * time.Second))
 		}
 		time.Sleep(time.Duration(1 * time.Second))
 	}
@@ -100,10 +107,10 @@ func (s *StethoNode) handleFailedNode(nodeID string){
 		s.faintNode(nodeID)
 		s.nodeStatuses[nodeID] +=1
 
-	} else if s.nodeStatuses[nodeID] < 10{
+	} else if s.nodeStatuses[nodeID] < s.failThreshold{
 		//the case for 1 - 9
 		s.nodeStatuses[nodeID] +=1
-	} else if s.nodeStatuses[nodeID] >= 10 {
+	} else if s.nodeStatuses[nodeID] >= s.failThreshold {
 		s.removeNode(nodeID)
 	}
 	fmt.Println(s.nodeStatuses)
@@ -111,14 +118,12 @@ func (s *StethoNode) handleFailedNode(nodeID string){
 
 func (s *StethoNode) faintNode(nodeId string){
 
-	s.postToRingServer(nodeId, FAINT_NODE_ENDPOINT)
+	go s.postToRingServer(nodeId, FAINT_NODE_ENDPOINT)
 }
 
 func (s *StethoNode) removeNode(nodeId string) {
 	log.Printf("[Stetho] Removing [Node %s] due to perm failure \n", nodeId)
 	delete(s.nodeStatuses, nodeId)
-	//TODO: Delete element from list
-	log.Println(s.nodeInfoArray)
 	//TODO: need to make sure i do not append duplicates
 	for i, nodeInfo := range s.nodeInfoArray {
 		if nodeInfo.id == nodeId {
@@ -126,9 +131,8 @@ func (s *StethoNode) removeNode(nodeId string) {
 			break
 		}
 	}
-	log.Println(s.nodeInfoArray)
-	s.postToRingServer(nodeId, REMOVE_NODE_ENDPOINT)
-
+	log.Println("After Removing: ", s.nodeInfoArray)
+	go s.postToRingServer(nodeId, REMOVE_NODE_ENDPOINT)
 }
 
 //func (s *StethoNode) reviveNode(nodeId string) {
@@ -137,9 +141,10 @@ func (s *StethoNode) removeNode(nodeId string) {
 //
 //}
 
-func (s *StethoNode) postToRingServer(nodeId string, endpoint string) ([]byte, error){
+func (s *StethoNode) postToRingServer(nodeId string, endpoint string){
 	//REVIVE, FAINT, REMOVE
 	postUrl := fmt.Sprintf("http://%s/%s", s.ringAddr, endpoint)
+	log.Println(postUrl)
 	requestBody, err := json.Marshal(map[string]string {
 		//TODO: don't hardcode it
 		"nodeId": nodeId,
@@ -150,19 +155,11 @@ func (s *StethoNode) postToRingServer(nodeId string, endpoint string) ([]byte, e
 	}
 
 	//TODO: Explore refactoring the below lines
-	resp, err := http.Post(postUrl, "application/json", bytes.NewBuffer(requestBody))
+	_, err = http.Post(postUrl, "application/json", bytes.NewBuffer(requestBody))
 	if err != nil {
 		log.Println("Check if Ring Server is up and running")
 		log.Println(err)
 	}
-	defer resp.Body.Close()
-
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		log.Println(err)
-	}
-
-	return body, err
 
 }
 
@@ -266,11 +263,11 @@ func (s *StethoNode) AddNodeHandler(w http.ResponseWriter, r *http.Request) {
 func (s *StethoNode) Start(){
 	go s.HttpServerStart()
 	//Not using a go routine here so that it blocks
-	s.ping()
+	s.pingAll()
 
 }
 
-func NewStethoServer(port string, numSeconds int, timeoutSeconds int) StethoNode {
+func NewStethoServer(port string, numSeconds int, timeoutSeconds int, failThreshold int) StethoNode {
 	client := http.Client{Timeout:time.Duration(time.Duration(timeoutSeconds) * time.Second)}
 
 	nodeInfoArray := []NodeInfo{}
@@ -278,7 +275,7 @@ func NewStethoServer(port string, numSeconds int, timeoutSeconds int) StethoNode
 	nodeStatuses := map[string] int {}
 
 	return StethoNode{client, nodeInfoArray,
-		ringServer, port, numSeconds, nodeStatuses}
+		ringServer, port, numSeconds, nodeStatuses, failThreshold}
 
 
 }
