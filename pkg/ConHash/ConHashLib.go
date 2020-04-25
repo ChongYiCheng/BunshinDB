@@ -109,6 +109,7 @@ func (n *Node) RegisterWithRing(r *Ring) {
 }
 
 const RING_URL = "192.168.56.1:5001"
+// const RING_URL = "192.168.1.142:5001"
 
 
 func (r *Ring) RegisterNodes(nodeDataArray []NodeData) []NodeData{

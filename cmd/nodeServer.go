@@ -296,14 +296,14 @@ func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
             http.Error(w, err.Error(), 400)
             return
         }
-        //TODO Allow Nodes to check if they're in the Coordinator Node's pref list
+        //Allow Nodes to check if they're in the Coordinator Node's pref list
         //If so, let them retrieve the item from their database
         if (contains(node.NodeRingPositions,dstNodeHash) || InPrefList(ring.NodePrefList[dstNodeHash],node.IP,node.Port)){ //If this node is responsible 
             fmt.Println("Node is Coordinator/InPrefList")
 
             //First, try to retrieve the data from the databaseFirst, try to retrieve the data from the database
             //fmt.Println("Get Handler - Retrieving Key Value pair and sending it back to Requestor")
-            //TODO Need to Implement W mechanism here
+            //W mechanism here
             if ((ring.RingNodeDataArray[dstNodeHash].IP == msg.SenderIP && ring.RingNodeDataArray[dstNodeHash].Port == msg.SenderPort) ||
             InPrefList(ring.NodePrefList[dstNodeHash],msg.SenderIP,msg.SenderPort)){
                 fmt.Printf("Node %s is responding to a W broadcast by %s:%s\n",node.CName,msg.SenderIP,msg.SenderPort)
@@ -439,10 +439,63 @@ func (node *Node) NewRingHandler(w http.ResponseWriter, r *http.Request) {
     }
 
     node.Ring = &ring
-    fmt.Printf("New Ring is %v\n",node.Ring)
-    fmt.Printf("New Ring preference list is %v\n",node.Ring.NodePrefList)
-    //TODO: Check hinted handoff db
-    // fmt.Printf("New Node Status: %v\n",node.Ring.NodeStatuses)
+    node.NodeRingPositions = []int{}
+    for _,nodeData := range node.Ring.RingNodeDataArray{
+        if nodeData.CName == node.CName{
+            node.NodeRingPositions = append(node.NodeRingPositions,nodeData.Hash)
+        }
+    }
+    node.ScanDB()
+    fmt.Printf("Updated Node Positions: %v\n",node.NodeRingPositions)
+}
+
+//Scan all key, value pairs and reallocate them
+//If the KV pair belongs to another node or another new node, send them to the new node
+func (node *Node) ScanDB(){
+    db := node.NodeDB
+	err := db.View(func(txn *badger.Txn) error {
+	  opts := badger.DefaultIteratorOptions
+	  opts.PrefetchSize = 10
+	  it := txn.NewIterator(opts)
+	  defer it.Close()
+	  for it.Rewind(); it.Valid(); it.Next() {
+	    item := it.Item()
+	    k := item.Key()
+        key := string(k)
+        dstNodeHash,dstNodeUrl,allocErr := node.Ring.AllocateKey(key)
+        if allocErr != nil{
+            fmt.Errorf("Failed to allocate key")
+        }
+        isCoordinator := contains(node.NodeRingPositions,dstNodeHash)
+
+        if isCoordinator == false{
+            var cartBytes []byte
+            err := item.Value(func(val []byte) error {
+            // This func with val would only be called if item.Value encounters no error.
+
+            // Copying or parsing val is valid.
+            cartBytes = append([]byte{}, val...)
+
+            return nil
+            })
+            if err != nil{
+                fmt.Errorf("Error in retrieving cartData from DB")
+            }
+	        fmt.Printf("Sending key=%s, value=%s to Node %s\n", k, cartBytes, node.Ring.RingNodeDataArray[dstNodeHash].ID)
+            rChannel := make(chan Message)
+            cartData := map[string][]byte{key:[]byte(cartBytes)}
+            writeMsg := &Message{
+                SenderIP:node.IP,SenderPort:node.Port,Data:cartData,
+            }
+            node.HttpClientReq(writeMsg,dstNodeUrl,"put",rChannel)
+            <-rChannel
+            close(rChannel)
+        }
+
+	  }
+	  return nil
+	})
+    handle(err)
 }
 
 func (node *Node) GetNodeHandler(w http.ResponseWriter, r *http.Request) {
