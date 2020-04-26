@@ -393,12 +393,6 @@ func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
                                 *replicationPointer = *replicationPointer + 1
                             }(replicaNodeData,repPointer)
                         }
-
-                        //1. Obtain replica node hash
-                        //2. Check status on ring
-                        //If faint, run hinted handoff
-                        //Else if alive, send to client
-                        //Else(most likely is an error where cannot find the node(removed from ring))
                         
                     }else{
                         fmt.Println("Skip cause ownself")
@@ -423,14 +417,38 @@ func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
 
             //TODO In case appropriate node fails, check pref list and send to secondary
 
-            //dstNodeData := ring.RingNodeDataArray[dstNodeHash]
+            dstNodeData := ring.RingNodeDataArray[dstNodeHash]
             //dstNodeIPPort := dstNodeUrl
             rChannel := make(chan Message)
-
-            node.HttpClientReq(msg,dstNodeUrl,"put",rChannel)
-            relayResponseMsg := <-rChannel
-            close(rChannel)
-            json.NewEncoder(w).Encode(relayResponseMsg)
+            dstPhysicalNodeID := dstNodeData.CName + "0"
+            fmt.Printf("Status of physical Node: %t\n",node.Ring.NodeStatuses[dstPhysicalNodeID])
+            // fmt.Printf("Replica Node Status: %t\n",node.Ring.NodeStatuses[replicaNodeData.ID])
+            statusOfdstPhysicalNode := node.Ring.NodeStatuses[dstPhysicalNodeID]
+            //Check if physical node of dstNode is alive. If not alive, send to next alive, else send to node
+            if statusOfdstPhysicalNode == false{
+                //Look for next healthy node and send it
+                fmt.Println("Physical Node of Coordinator Node is down")
+                fmt.Printf("node.Ring.NodePrefList[dstNodeHash]: %v\n",node.Ring.NodePrefList[dstNodeHash])
+                for _, nodeData := range node.Ring.NodePrefList[dstNodeHash]{
+                    //Look through preference list for the next healthy node to send to
+                    physicalNodeID := nodeData.CName + "0"
+                    statusOfPhysicalNode := node.Ring.NodeStatuses[physicalNodeID]
+                    if statusOfPhysicalNode == true{
+                        fmt.Printf("Relaying to %v instead\n",nodeData)
+                        newDstNodeUrl := fmt.Sprintf("%s:%s",nodeData.IP,nodeData.Port)
+                        node.HttpClientReq(msg,newDstNodeUrl,"put",rChannel)
+                        relayResponseMsg := <-rChannel
+                        close(rChannel)
+                        json.NewEncoder(w).Encode(relayResponseMsg)
+                        break
+                    }
+                }
+            }else{
+                node.HttpClientReq(msg,dstNodeUrl,"put",rChannel)
+                relayResponseMsg := <-rChannel
+                close(rChannel)
+                json.NewEncoder(w).Encode(relayResponseMsg)
+            }
         }
     }
 }
@@ -458,7 +476,6 @@ func (node *Node) NewRingHandler(w http.ResponseWriter, r *http.Request) {
             node.NodeRingPositions = append(node.NodeRingPositions,nodeData.Hash)
         }
     }
-    //Add Check hinted handoff here?
     node.CheckHintedHandOff()
     node.ScanDB()
     fmt.Printf("Updated Node Positions: %v\n",node.NodeRingPositions)
@@ -504,9 +521,36 @@ func (node *Node) ScanDB(){
             writeMsg := &Message{
                 SenderIP:node.IP,SenderPort:node.Port,Data:cartData,
             }
-            node.HttpClientReq(writeMsg,dstNodeUrl,"put",rChannel)
-            <-rChannel
-            close(rChannel)
+            fmt.Printf("ScanDB - dstNodeUrl is %s\n",dstNodeUrl)
+            //Check status of the dst node's physical node. If down, look for next best option 
+            dstNodeData := node.Ring.RingNodeDataArray[dstNodeHash]
+            dstPhysicalNodeID := dstNodeData.CName + "0"
+            fmt.Printf("Status of physical Node: %t\n",node.Ring.NodeStatuses[dstPhysicalNodeID])
+            // fmt.Printf("Replica Node Status: %t\n",node.Ring.NodeStatuses[replicaNodeData.ID])
+            statusOfdstPhysicalNode := node.Ring.NodeStatuses[dstPhysicalNodeID]
+            if statusOfdstPhysicalNode == false{
+                //Look for next healthy node and send it
+                fmt.Println("Physical Node of Coordinator Node is down")
+                fmt.Printf("node.Ring.NodePrefList[dstNodeHash]: %v\n",node.Ring.NodePrefList[dstNodeHash])
+                for _, nodeData := range node.Ring.NodePrefList[dstNodeHash]{
+                    //Look through preference list for the next healthy node to send to
+                    physicalNodeID := nodeData.CName + "0"
+                    statusOfPhysicalNode := node.Ring.NodeStatuses[physicalNodeID]
+                    if statusOfPhysicalNode == true{
+                        fmt.Printf("Relaying to %v instead\n",nodeData)
+                        newDstNodeUrl := fmt.Sprintf("%s:%s",nodeData.IP,nodeData.Port)
+                        node.HttpClientReq(writeMsg,newDstNodeUrl,"put",rChannel)
+                        <-rChannel
+                        close(rChannel)
+                        break
+                    }
+                }
+            }else{
+                node.HttpClientReq(writeMsg,dstNodeUrl,"put",rChannel)
+                <-rChannel
+                close(rChannel)
+            }
+
         }
 
 	  }
@@ -561,7 +605,7 @@ func (node *Node) HttpClientReq(msg *Message,targetUrl string,endpoint string, r
 	}
     fmt.Println("HTTP Client Req function called")
     url := fmt.Sprintf("http://%s/%s",targetUrl,endpoint)
-
+    fmt.Printf("HTTP Client Req target url is %s\n",url)
     jsonBuffer, err := json.Marshal(msg)
     handle(err)
 
@@ -691,7 +735,7 @@ func (node *Node) RunHintedHandOff(replicaHash int, userID string, clientCartByt
 }
 func (node *Node) CheckHintedHandOff(){
     hhMap := node.HHDBtoMap()
-    fmt.Printf("HHMAP: %v\n",hhMap)
+    //fmt.Printf("HHMAP: %v\n",hhMap)
     if len(hhMap) == 0{
         fmt.Println("Hinted Handoff is empty!")
     }else{
