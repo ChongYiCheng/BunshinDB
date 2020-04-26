@@ -218,9 +218,8 @@ func main(){
     //Set constants here
     //TODO need to know at least some of the members of the ring somehow
     //KnownNodeUrls := []string{fmt.Sprintf("%s:8080",currentIP),fmt.Sprintf("%s:8081",currentIP),fmt.Sprintf("%s:8082",currentIP),fmt.Sprintf("%s:8083",currentIP)}
-    KnownNodeUrls := []string{fmt.Sprintf("%s:8080",currentIP),fmt.Sprintf("%s:8081",currentIP)}
+    KnownNodeUrls := []string{fmt.Sprintf("%s:8080",currentIP),fmt.Sprintf("%s:8081",currentIP),fmt.Sprintf("%s:8082",currentIP),fmt.Sprintf("%s:8083",currentIP),fmt.Sprintf("%s:8084",currentIP)}
     client := &Client{currentIP,port,KnownNodeUrls}
-
 	//Start of CLI interactivity
 	reader := bufio.NewReader(os.Stdin)
     fmt.Printf("Client@%s:%s$ ",client.IP,client.Port)
