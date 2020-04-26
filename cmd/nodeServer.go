@@ -851,7 +851,6 @@ func (node *Node) QueryHH(queryKey string) (map[string][]byte,error){
 }
 
 func (node *Node) DeleteHHKey(Key string) error{
-    fmt.Printf("Deleting Key %s\n",Key)
     db := node.HHQueue
 	err := db.Update(func(txn *badger.Txn) error {
 	err := txn.Delete([]byte(Key))
