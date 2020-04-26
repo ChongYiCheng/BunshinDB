@@ -3,6 +3,7 @@ package ServerUtils
 import (
 	"50.041-DistSysProject-BunshinDB/pkg/ConHash"
 	"50.041-DistSysProject-BunshinDB/pkg/ConHttp"
+	"50.041-DistSysProject-BunshinDB/pkg/Utils"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -18,6 +19,11 @@ const FAINT_NODE_ENDPOINT = "faint-node"
 const REMOVE_NODE_ENDPOINT = "remove-node"
 const REVIVE_NODE_ENDPOINT = "revive-node"
 //Once we exceed 10, we will declare it as a "permanent failure"
+
+//used only for to store and to marshal out
+type NodeStatusRestOutput struct {
+	StatusArray []map[string] interface{}
+}
 
 type NodeInfo struct {
 	id string 
@@ -40,8 +46,12 @@ type StethoNode struct {
 func (s *StethoNode) addNode(nodeID string, nodeAddr string){
 
 	if _, ok := s.nodeStatuses[nodeID]; ok {
-		fmt.Printf("[STETHO] Node %s already exists in Stetho's record. Will not duplicate.\n")
-		return
+		if s.nodeStatuses[nodeID] != -1 {
+			fmt.Printf("[STETHO] Node %s already exists in Stetho's record. Will not duplicate.\n")
+			return
+		} else {
+			fmt.Printf("[STETHO] Node %s - detected previous perm failure. Adding anyway...")
+		}
 	}
 
 	s.nodeStatuses[nodeID] = 0
@@ -80,7 +90,6 @@ func (s *StethoNode) ping(nodeID string, urlString string){
 }
 
 
-//TODO: Can explore making pingAll() async. Ping shall be synchronous for now.
 func (s *StethoNode) pingAll(){
 	time.Sleep(time.Duration(1 * time.Second))
 	log.Print("Stetho is up and pinging")
@@ -123,7 +132,9 @@ func (s *StethoNode) faintNode(nodeId string){
 
 func (s *StethoNode) removeNode(nodeId string) {
 	log.Printf("[Stetho] Removing [Node %s] due to perm failure \n", nodeId)
-	delete(s.nodeStatuses, nodeId)
+
+	//Set to -1 so we can see later
+	s.nodeStatuses[nodeId] = - 1
 	//TODO: need to make sure i do not append duplicates
 	for i, nodeInfo := range s.nodeInfoArray {
 		if nodeInfo.id == nodeId {
@@ -135,11 +146,6 @@ func (s *StethoNode) removeNode(nodeId string) {
 	go s.postToRingServer(nodeId, REMOVE_NODE_ENDPOINT)
 }
 
-//func (s *StethoNode) reviveNode(nodeId string) {
-//	s.nodeStatuses[nodeId] = 0
-//	s.postToRingServer(nodeId, REVIVE_NODE_ENDPOINT)
-//
-//}
 
 func (s *StethoNode) postToRingServer(nodeId string, endpoint string){
 	//REVIVE, FAINT, REMOVE
@@ -164,11 +170,11 @@ func (s *StethoNode) postToRingServer(nodeId string, endpoint string){
 }
 
 
-
 func (s *StethoNode) HttpServerStart(){
 
 	http.HandleFunc("/set-ring", s.SetRingHandler)
 	http.HandleFunc("/add-node", s.AddNodeHandler)
+	http.HandleFunc("/get-status", s.GetStatusHandler)
 	ip, err := ConHttp.ExternalIP()
 
 	if err == nil {
@@ -264,6 +270,30 @@ func (s *StethoNode) Start(){
 	go s.HttpServerStart()
 	//Not using a go routine here so that it blocks
 	s.pingAll()
+
+}
+
+func (s *StethoNode) GetStatusHandler(w http.ResponseWriter, r *http.Request) {
+	Utils.EnableCors(&w)
+	res := NodeStatusRestOutput{}
+	for k, v := range s.nodeStatuses {
+		newNodeStatus := map[string]interface{} {}
+		newNodeStatus["name"] = k
+		fmt.Println(v)
+		newNodeStatus["status"] = v
+		res.Data = append(res.Data, newNodeStatus)
+	}
+
+	body, err := json.Marshal(res)
+	if err != nil {
+		log.Println(err)
+	}
+
+	_, err = w.Write(body)
+
+	if err != nil {
+		log.Println(err)
+	}
 
 }
 

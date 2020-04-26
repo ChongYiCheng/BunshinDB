@@ -201,7 +201,6 @@ func (ringServer RingServer) GetRingHandler(w http.ResponseWriter, r *http.Reque
 		log.Println(err)
 	}
 
-	//TODO: What is the first element returned by Write??
 	_, err = w.Write(body)
 
 }
