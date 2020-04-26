@@ -66,6 +66,11 @@ func (ringServer *RingServer) AddNodeHandler(w http.ResponseWriter, r *http.Requ
 	}
 	phyNode := nodeDataArray[0]
 	nodeID := phyNode.ID
+
+	if _, ok := ringServer.ring.NodeStatuses[nodeID]; ok {
+		fmt.Printf("Node %s has been registered before already! Skipping... \n", nodeID)
+		return
+	}
 	nodeUrl := fmt.Sprintf("%s:%s", phyNode.IP, phyNode.Port)
 
 

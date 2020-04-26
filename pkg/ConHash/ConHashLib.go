@@ -109,8 +109,7 @@ func (n *Node) RegisterWithRing(r *Ring) {
 	fmt.Printf("Ring registered for %s: %s  \n", n.ID, ToString(n.NodeDataArray))
 }
 
-const RING_URL = "192.168.56.1:5001"
-// const RING_URL = "192.168.1.142:5001"
+const RING_URL = "localhost:5001"
 
 
 func (r *Ring) RegisterNodes(nodeDataArray []NodeData) []NodeData{
