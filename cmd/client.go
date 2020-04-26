@@ -48,6 +48,7 @@ func (client *Client) HttpClientReq(msg *Message,targetUrl string,endpoint strin
     req.Header.Set("Content-Type", "application/json")
 
     res, err := httpClient.Do(req)
+    defer res.Body.Close()
     if err != nil{
         fmt.Printf("Cannot reach server at %v\n",url)
         unreachableUrl := targetUrl
@@ -57,16 +58,12 @@ func (client *Client) HttpClientReq(msg *Message,targetUrl string,endpoint strin
             fmt.Printf("Client sending to Node %s\n",client.KnownNodeURLs[dstNodeidx])
             targetUrl = client.KnownNodeURLs[dstNodeidx]
         }
-        //YC: I think no need to go routine this.
-        client.HttpClientReq(msg, targetUrl, endpoint)
-        // go client.HttpClientReq(msg, targetUrl, endpoint)
+        go client.HttpClientReq(msg, targetUrl, endpoint)
         return
-    }else{
-        defer res.Body.Close()
-        fmt.Println("HTTP Client Req - Got a response")
     }
-
-
+    // defer res.Body.Close()
+    fmt.Println("HTTP Client Req - Got a response")
+    
     // always close the response-body, even if content is not required
 
     if err != nil {

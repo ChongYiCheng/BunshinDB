@@ -269,7 +269,10 @@ func (node *Node) GetHandler(w http.ResponseWriter, r *http.Request) {
     } else{
         fmt.Println("Get Handler - Relaying Key to the Coordinator Node")
         // TODO Implement a fallback mechanism if Coordinator Node is not alive
-        responseMessage := node.CheckStatusAndSend(dstNodeHash,msg,"get")
+        var responseMessage *Message
+        go func(responseMessage *Message,msgToSend *Message) {
+            responseMessage = node.CheckStatusAndSend(dstNodeHash,msgToSend,"get")
+        }(responseMessage,msg)
         //Need to relay get request to appropriate node
         // rChannel := make(chan Message)
         // node.HttpClientReq(msg,dstNodeUrl,"get",rChannel)
@@ -407,17 +410,6 @@ func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
                             <-wChannel
                             fmt.Println("Replication pointer +1")
                             *repPointer = *repPointer + 1
-                            // *replicationPointer = *replicationPointer + 1
-                            // fmt.Printf("Replication pointer: %d\n",*replicationPointer)
-                            // go func(rData ConHash.NodeData, replicationPointer *int) {
-                            //     replicaNodeDataUrl := fmt.Sprintf("%s:%s",rData.IP,rData.Port)
-                            //     fmt.Printf("Sending replica to %s\n",replicaNodeDataUrl)
-                            //     node.HttpClientReq(writeMsg,replicaNodeDataUrl,"put",wChannel)
-                            //     <-wChannel
-                            //     fmt.Println("Replication pointer +1")
-                            //     *replicationPointer = *replicationPointer + 1
-                            //     fmt.Printf("Replication pointer: %d\n",*replicationPointer)
-                            // }(replicaNodeData,repPointer)
                         }
                     }else{
                         fmt.Println("Skip cause ownself")
@@ -450,7 +442,10 @@ func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
             fmt.Println("Node is relaying client request to Coordinator")
             //Need to relay put request to appropriate node
             //TODO In case appropriate node fails, check pref list and send to secondary
-            relayResponseMsg := node.CheckStatusAndSend(dstNodeHash,msg,"put")
+            var relayResponseMsg *Message
+            go func(responseMessage *Message,msgToSend *Message) {
+                responseMessage = node.CheckStatusAndSend(dstNodeHash,msgToSend,"put")
+            }(relayResponseMsg,msg)
             fmt.Printf("Put handler relayResponseMsg: %v\n",relayResponseMsg)
             json.NewEncoder(w).Encode(relayResponseMsg)
         }
@@ -527,8 +522,11 @@ func (node *Node) ScanDB(){
             fmt.Printf("ScanDB - dstNodeUrl is %s\n",dstNodeUrl)
             //Check status of the dst node's physical node. If down, look for next best option 
 
-            respondMessage := node.CheckStatusAndSend(dstNodeHash, writeMsg, "put")
-            fmt.Println("ScanDB() completes transfer with message %v\n",respondMessage)
+            var responseMessage *Message
+            go func(responseMessage *Message,msgToSend *Message) {
+                responseMessage = node.CheckStatusAndSend(dstNodeHash,msgToSend,"put")
+            }(responseMessage,writeMsg)
+            fmt.Println("ScanDB() completes transfer with message %v\n",responseMessage)
         }
 
 	  }
@@ -595,7 +593,6 @@ func (node *Node) HttpClientReq(msg *Message,targetUrl string,endpoint string, r
     fmt.Println("HTTP Client Req - Got a response")
 
     // always close the response-body, even if content is not required
-
     if err != nil {
          fmt.Println("Unable to reach the server.")
     } else {
@@ -889,7 +886,7 @@ func (node *Node) DeleteHHKey(Key string) error{
     return err
 }
 
-func (node *Node) CheckStatusAndSend(dstNodeHash int, msg *Message, endpoint string) Message{
+func (node *Node) CheckStatusAndSend(dstNodeHash int, msg *Message, endpoint string) *Message{
     //Takes dstNodeHash and message as argument
     //Checks if dst node's physical node is alive. If alive, send. If not find next alive from pref list.
     dstNodeData := node.Ring.RingNodeDataArray[dstNodeHash]
@@ -913,7 +910,7 @@ func (node *Node) CheckStatusAndSend(dstNodeHash int, msg *Message, endpoint str
                 node.HttpClientReq(msg,newDstNodeURL,endpoint,rChannel)
                 respondMessage := <-rChannel
                 close(rChannel)
-                return respondMessage
+                return &respondMessage
             }
         }
     }else{
@@ -921,9 +918,9 @@ func (node *Node) CheckStatusAndSend(dstNodeHash int, msg *Message, endpoint str
         respondMessage := <-rChannel
         fmt.Printf("Responde Message :%v\n",respondMessage)
         close(rChannel)
-        return respondMessage
+        return &respondMessage
     }
-    return Message{}
+    return &Message{}
 }
 
 func (node *Node) runCommand(commandStr string) error {
