@@ -4,12 +4,11 @@
   <p class="product__description">{{ .description }}</p>
   <div class="product__button-container">
     <div class="product__price">${{ .price }}</div>
+    <!-- TODO: Update the Shopping Cart-->
     <button
-      class="snipcart-add-item buy-button"
-      data-item-id="{{ .id }}"
+      class="shop-item-button buy-button"
       data-item-name="{{ .name }}"
       data-item-price="{{ .price }}"
-      data-item-url="{{ .product_url }}"
       data-item-description="{{ .description }}">
       Add to cart
     </button>

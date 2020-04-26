@@ -1,7 +1,12 @@
 {{ partial "header.html" . }}
 <main class="products">
-  {{ range .Site.Data.products }}
-    {{ partial "product.html" . }}
-  {{ end }}
+  <div class="promotional-message">
+    <h3>Save the trip</h3>
+    <h2>Enjoy the CCB</h2>
+    <p>Online Shopping from <strong>the comfort of your homes</strong>. Stay home, save lives.</p>
+  </div>
+	{{ range where .Site.RegularPages "Section" "products"}}
+	  {{ partial "product.html" .Params }}
+	{{ end }}
 </main>
 {{ partial "footer.html" . }}
