@@ -146,7 +146,7 @@ func (node *Node) GetHandler(w http.ResponseWriter, r *http.Request) {
     fmt.Println(msg)
     query := msg.Query
     ring := node.Ring
-    dstNodeHash, dstNodeUrl , AllocErr := ring.AllocateKey(query)
+    dstNodeHash, _ , AllocErr := ring.AllocateKey(query)
     if AllocErr != nil{
         fmt.Println("Failed to allocate node to key [%s]",query)
     }
@@ -200,7 +200,7 @@ func (node *Node) GetHandler(w http.ResponseWriter, r *http.Request) {
             }
             for _,replicaNodeData := range otherReplicas{
                 if replicaNodeData.CName != node.CName{
-                    //Check if alive. If not alive, then dun need to ask node
+                    //Check if alive. If not alive, then dun ask node
                     physicalNodeID := replicaNodeData.CName + "0"
                     fmt.Printf("Status of physical Node: %t\n",node.Ring.NodeStatuses[physicalNodeID])
                     // fmt.Printf("Replica Node Status: %t\n",node.Ring.NodeStatuses[replicaNodeData.ID])
@@ -269,14 +269,18 @@ func (node *Node) GetHandler(w http.ResponseWriter, r *http.Request) {
     } else{
         fmt.Println("Get Handler - Relaying Key to the Coordinator Node")
         // TODO Implement a fallback mechanism if Coordinator Node is not alive
-
+        var responseMessage *Message
+        go func(dstNodeHash int,responseMessage *Message,msgToSend *Message) {
+            responseMessage = node.CheckStatusAndSend(dstNodeHash,msgToSend,"get")
+        }(dstNodeHash,responseMessage,msg)
         //Need to relay get request to appropriate node
-        rChannel := make(chan Message)
-        node.HttpClientReq(msg,dstNodeUrl,"get",rChannel)
-        fmt.Println("Get Handler - Returning relayed message to client")
-        responseMessage := <-rChannel
-        fmt.Println("Received Relayed Msg from Coordinator Node")
-        close(rChannel)
+        // rChannel := make(chan Message)
+        // node.HttpClientReq(msg,dstNodeUrl,"get",rChannel)
+        // fmt.Println("Get Handler - Returning relayed message to client")
+        // responseMessage := <-rChannel
+        // fmt.Println("Received Relayed Msg from Coordinator Node")
+        // close(rChannel)
+        fmt.Printf("Response message from coordinator node: %v\n",responseMessage)
         json.NewEncoder(w).Encode(responseMessage)
     }
 }
@@ -330,9 +334,11 @@ func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
                 responseMessage := &Message{
                     SenderIP:node.IP,SenderPort:node.Port,Data:msgData,
                 }
+                fmt.Printf("ResponseStatus is %s\n",responseStatus)
                 if responseStatus == "400"{
                     http.Error(w, http.StatusText(http.StatusBadRequest),http.StatusBadRequest)
                 } else{
+                    fmt.Println("Replying response msg!")
                     json.NewEncoder(w).Encode(responseMessage)
                 }
             } else{
@@ -365,13 +371,12 @@ func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
                 otherReplicas := []ConHash.NodeData{}
                 //fmt.Printf("RingNodeDataArray: %v\n",ring.RingNodeDataArray)
                 fmt.Printf("RingNodeDataArray[dstNodeHash]: %v\n",ring.RingNodeDataArray[dstNodeHash])
-                fmt.Printf("NodePrefList: %v\n",ring.NodePrefList)
+                //fmt.Printf("NodePrefList: %v\n",ring.NodePrefList)
                 otherReplicas = append(otherReplicas,ring.RingNodeDataArray[dstNodeHash])
                 //otherReplicas = append(otherReplicas,ring.NodePrefList[dstNodeHash])
                 otherReplicas = append(otherReplicas,ring.NodePrefList[dstNodeHash]...)
                 var successfulReplications = 0
                 var repPointer = &successfulReplications
-
                 wChannel := make(chan Message)
                 //This sends to the other replica
                 fmt.Printf("Other Replicas : %v\n",otherReplicas)
@@ -393,28 +398,49 @@ func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
                             fmt.Printf("Node statuses :%v\n",node.Ring.NodeStatuses)
                             replicaNodeHash := replicaNodeData.Hash
                             node.RunHintedHandOff(replicaNodeHash,key,[]byte(clientCartBytes))
+                            responseMessage := &Message{
+                                SenderIP:node.IP,SenderPort:node.Port,Data:msgData,
+                            }
+                            w.WriteHeader(http.StatusOK)
+                            //TODO: Fix the issue where responseMessage not sent to Client
+                            json.NewEncoder(w).Encode(responseMessage)
+                            return
                             //Save into HintedHandoff
                         }else{
-                            go func(rData ConHash.NodeData, replicationPointer *int) {
+                            fmt.Println("Proceed to send to replica")
+                            go func(rData ConHash.NodeData, rcvChannel chan Message) {
                                 replicaNodeDataUrl := fmt.Sprintf("%s:%s",rData.IP,rData.Port)
-                                node.HttpClientReq(writeMsg,replicaNodeDataUrl,"put",wChannel)
-                                <-wChannel
-                                *replicationPointer = *replicationPointer + 1
-                            }(replicaNodeData,repPointer)
+                                fmt.Printf("Sending replica to %s\n",replicaNodeDataUrl)
+                                node.HttpClientReq(writeMsg,replicaNodeDataUrl,"put",rcvChannel)
+                            }(replicaNodeData,wChannel)
+                            <-wChannel
+                            fmt.Println("Replication pointer +1")
+                            *repPointer = *repPointer + 1
                         }
                     }else{
                         fmt.Println("Skip cause ownself")
                     }
                 }
                 //close(wChannel)
+                //sleep to let the go func resolve
+                // time.Sleep(time.Duration(5000)*time.Millisecond)
+                //TODO: Run as go func
+                fmt.Printf("Successful replications using repPointer: %d\n",successfulReplications)
                 if successfulReplications >= ring.RWFactor{
                     //Write is successful
+                    fmt.Println("Write is successful!")
+                    // responseMessage := &Message{
+                    //     SenderIP:node.IP,SenderPort:node.Port,Data:cartData,
+                    // }
                     responseMessage := &Message{
-                        SenderIP:node.IP,SenderPort:node.Port,Data:cartData,
+                        SenderIP:node.IP,SenderPort:node.Port,Data:msgData,
                     }
+                    fmt.Printf("response message after success replication: %v\n",*responseMessage)
                     w.WriteHeader(http.StatusOK)
+                    //TODO: Fix the issue where responseMessage not sent to Client
                     json.NewEncoder(w).Encode(responseMessage)
                 } else{
+                    //TODO: for some reason, got no failure but this was triggered
                     //Return 501 code because Server failed to complete write (which means alot of failures in DB)
                     http.Error(w, http.StatusText(http.StatusNotImplemented), http.StatusNotImplemented)
                 }
@@ -423,7 +449,11 @@ func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
             fmt.Println("Node is relaying client request to Coordinator")
             //Need to relay put request to appropriate node
             //TODO In case appropriate node fails, check pref list and send to secondary
-            relayResponseMsg := node.CheckStatusAndSend(dstNodeHash,msg)
+            var relayResponseMsg *Message
+            go func(dstNodeHash int, responseMessage *Message,msgToSend *Message) {
+                responseMessage = node.CheckStatusAndSend(dstNodeHash,msgToSend,"put")
+            }(dstNodeHash,relayResponseMsg,msg)
+            fmt.Printf("Put handler relayResponseMsg: %v\n",relayResponseMsg)
             json.NewEncoder(w).Encode(relayResponseMsg)
         }
     }
@@ -499,8 +529,11 @@ func (node *Node) ScanDB(){
             fmt.Printf("ScanDB - dstNodeUrl is %s\n",dstNodeUrl)
             //Check status of the dst node's physical node. If down, look for next best option 
 
-            respondMessage := node.CheckStatusAndSend(dstNodeHash, writeMsg)
-            fmt.Println("ScanDB() completes transfer with message %v\n",respondMessage)
+            var responseMessage *Message
+            go func(dstNodeHash int,responseMessage *Message,msgToSend *Message) {
+                responseMessage = node.CheckStatusAndSend(dstNodeHash,msgToSend,"put")
+            }(dstNodeHash,responseMessage,writeMsg)
+            fmt.Println("ScanDB() completes transfer with message %v\n",*responseMessage)
         }
 
 	  }
@@ -567,7 +600,6 @@ func (node *Node) HttpClientReq(msg *Message,targetUrl string,endpoint string, r
     fmt.Println("HTTP Client Req - Got a response")
 
     // always close the response-body, even if content is not required
-
     if err != nil {
          fmt.Println("Unable to reach the server.")
     } else {
@@ -577,6 +609,8 @@ func (node *Node) HttpClientReq(msg *Message,targetUrl string,endpoint string, r
             //TODO: Remove comments for statement below(Removing for hintedhandoff testing)
             //fmt.Printf("Response Message is \n%v\n",resMsg)
             relayChannel <- resMsg
+        }else{
+            fmt.Printf("res.StatusCode is %d\n",res.StatusCode)
         }
     }
 }
@@ -584,6 +618,7 @@ func (node *Node) HttpClientReq(msg *Message,targetUrl string,endpoint string, r
 
 
 func (node *Node) UpdateDB(update map[string][]byte) error{
+    fmt.Println("Updating database")
     db := node.NodeDB
     txn := db.NewTransaction(true)
     for k,v := range update{
@@ -858,7 +893,7 @@ func (node *Node) DeleteHHKey(Key string) error{
     return err
 }
 
-func (node *Node) CheckStatusAndSend(dstNodeHash int, msg *Message) Message{
+func (node *Node) CheckStatusAndSend(dstNodeHash int, msg *Message, endpoint string) *Message{
     //Takes dstNodeHash and message as argument
     //Checks if dst node's physical node is alive. If alive, send. If not find next alive from pref list.
     dstNodeData := node.Ring.RingNodeDataArray[dstNodeHash]
@@ -879,19 +914,21 @@ func (node *Node) CheckStatusAndSend(dstNodeHash int, msg *Message) Message{
             if statusOfPhysicalNode == true{
                 fmt.Printf("Relaying to %v instead\n",nodeData)
                 newDstNodeURL := fmt.Sprintf("%s:%s",nodeData.IP,nodeData.Port)
-                node.HttpClientReq(msg,newDstNodeURL,"put",rChannel)
+                node.HttpClientReq(msg,newDstNodeURL,endpoint,rChannel)
                 respondMessage := <-rChannel
                 close(rChannel)
-                return respondMessage
+                return &respondMessage
             }
         }
     }else{
         node.HttpClientReq(msg,dstNodeURL,"put",rChannel)
         respondMessage := <-rChannel
+        fmt.Printf("Responde Message :%v\n",respondMessage)
         close(rChannel)
-        return respondMessage
+        return &respondMessage
     }
-    return Message{}
+    fmt.Println("No response message from CheckStatusAndSend")
+    return &Message{}
 }
 
 func (node *Node) runCommand(commandStr string) error {
