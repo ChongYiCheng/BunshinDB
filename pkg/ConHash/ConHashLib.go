@@ -215,9 +215,14 @@ func (ring *Ring) GenPrefList(){
             ring.NodePrefList[i] = func(i int) []NodeData {
                 ret := []NodeData{}
                 j := (i + 1) % ring.MaxID
+                //Need to track Nodes that have already become a replica by their CNames 
+                currentReplicas := map[string]struct{}{}
+                currentReplicas[nodeArray[i].CName] = struct{}{}
                 for (j != i) {
-                    if nodeArray[j].ID != "" && nodeArray[j].CName != nodeArray[i].CName{
+                    _, alrReplica := currentReplicas[nodeArray[j].CName]
+                    if nodeArray[j].ID != "" && (alrReplica == false){
                         ret = append(ret,nodeArray[j])
+                        currentReplicas[nodeArray[j].CName] = struct{}{}
                         if len(ret) == ring.ReplicationFactor{
                             return ret
                             }
