@@ -111,6 +111,7 @@ func (n *Node) RegisterWithRingServer(ringUrl string) {
     //TODO: print status code instead of the response itself
     fmt.Println("Response from registering w Ring Server: ", string(body))
     if err != nil {
+        fmt.Println("Error at Register with Ring Server")
         log.Fatalln(err)
     }
 }
@@ -351,8 +352,6 @@ func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
                     SenderIP:node.IP,SenderPort:node.Port,Data:cartData,
                 }
                 otherReplicas := []ConHash.NodeData{}
-                fmt.Println("INVALID ITEM COMING *********************")
-                fmt.Printf("%v\n",ring.RingNodeDataArray[12452])
                 //fmt.Printf("RingNodeDataArray: %v\n",ring.RingNodeDataArray)
                 fmt.Printf("RingNodeDataArray[dstNodeHash]: %v\n",ring.RingNodeDataArray[dstNodeHash])
                 fmt.Printf("NodePrefList: %v\n",ring.NodePrefList)
@@ -371,14 +370,20 @@ func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
                         //Need to pay attention to this when debugging
                         //TODO: Hinted handoff comes in here. Check if faint.
                         //Get status of dest node
-                        statusOfReplica := node.Ring.NodeStatuses[replicaNodeData.ID]
-                        if statusOfReplica == false{
+                        fmt.Printf("Node statuses :%v\n",node.Ring.NodeStatuses)
+                        fmt.Printf("ID of replica Node: %s\n",replicaNodeData.ID)
+                        //fmt.Printf("CName of replica Node: %s\n",replicaNodeData.CName)
+                        physicalNodeID := replicaNodeData.CName + "0"
+                        fmt.Printf("Status of physical Node: %t\n",node.Ring.NodeStatuses[physicalNodeID])
+                        // fmt.Printf("Replica Node Status: %t\n",node.Ring.NodeStatuses[replicaNodeData.ID])
+                        statusOfPhysicalNode := node.Ring.NodeStatuses[physicalNodeID]
+                        if statusOfPhysicalNode == false{
                             fmt.Println("Go into Hinted Handoff")
+                            fmt.Printf("Node statuses :%v\n",node.Ring.NodeStatuses)
                             // fmt.Printf("Key: %s\n",key)
                             // fmt.Printf("Cart Data: %v\n",cartData)
                             replicaNodeHash := replicaNodeData.Hash
                             node.RunHintedHandOff(replicaNodeHash,key,[]byte(clientCartBytes))
-                            node.CheckHintedHandOff()
                             //Save into HintedHandoff
                         }else{
                             go func(rData ConHash.NodeData, replicationPointer *int) {
@@ -389,14 +394,12 @@ func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
                             }(replicaNodeData,repPointer)
                         }
 
-
-
                         //1. Obtain replica node hash
                         //2. Check status on ring
                         //If faint, run hinted handoff
                         //Else if alive, send to client
                         //Else(most likely is an error where cannot find the node(removed from ring))
-  
+                        
                     }else{
                         fmt.Println("Skip cause ownself")
                     }
@@ -455,20 +458,24 @@ func (node *Node) NewRingHandler(w http.ResponseWriter, r *http.Request) {
             node.NodeRingPositions = append(node.NodeRingPositions,nodeData.Hash)
         }
     }
+    //Add Check hinted handoff here?
+    node.CheckHintedHandOff()
     node.ScanDB()
     fmt.Printf("Updated Node Positions: %v\n",node.NodeRingPositions)
+
 }
 
 //Scan all key, value pairs and reallocate them
 //If the KV pair belongs to another node or another new node, send them to the new node
 func (node *Node) ScanDB(){
+    fmt.Println("Entering ScanDB()")
     db := node.NodeDB
 	err := db.View(func(txn *badger.Txn) error {
-	  opts := badger.DefaultIteratorOptions
-	  opts.PrefetchSize = 10
-	  it := txn.NewIterator(opts)
-	  defer it.Close()
-	  for it.Rewind(); it.Valid(); it.Next() {
+        opts := badger.DefaultIteratorOptions
+        opts.PrefetchSize = 10
+        it := txn.NewIterator(opts)
+        defer it.Close()
+        for it.Rewind(); it.Valid(); it.Next() {
 	    item := it.Item()
 	    k := item.Key()
         key := string(k)
@@ -625,7 +632,9 @@ func (node *Node) QueryDB(queryKey string) (map[string][]byte,error){
     var valCopy []byte
     db := node.NodeDB
 	err := db.View(func(txn *badger.Txn) error {
-	item, err := txn.Get([]byte(queryKey))
+    item, err := txn.Get([]byte(queryKey))
+    //TODO: Get has some issues on some nodes. Wonder why
+    //ERROR: logging before flag.Parse - Key not found(Will this be a problem?)
     if err!=nil{
         glog.Error(err)
 	    return err
@@ -673,50 +682,73 @@ func (node *Node) DeleteKey(Key string) error{
 
 
 func (node *Node) RunHintedHandOff(replicaHash int, userID string, clientCartBytes []byte){
+    fmt.Println("***RUNNING HINTED HANDOFF***")
     fmt.Printf("Replica Node Hash is %d\n",replicaHash)
     hashAndUserId := strconv.Itoa(replicaHash) + "," + userID
     fmt.Printf("hash + user id :%s\n",hashAndUserId)
     hintedHandoff := map[string][]byte{hashAndUserId:clientCartBytes}
     node.UpdateHH(hintedHandoff)
-    // fmt.Println("Viewing HintedHandoff Queue")
-    //node.ViewHH()
 }
 func (node *Node) CheckHintedHandOff(){
     hhMap := node.HHDBtoMap()
-    //fmt.Printf("HHMAP: %v\n",hhMap)
-    ring := node.Ring
-    wChannel := make(chan Message)
-    for hashandUserID, CartDataInHH := range(hhMap){
-        //TODO: Split the key into hash and user id
-        arrayHashUserID := strings.Split(hashandUserID, ",")
-        fmt.Printf("arrayHashUserID[1]: %s\n", arrayHashUserID[1])
-        replicaHash,err := strconv.Atoi(arrayHashUserID[0])
-        userID := arrayHashUserID[1]
-        if err != nil{
-            fmt.Println("Hash conversion failed")
-        }else{
-            replicaData:= ring.RingNodeDataArray[replicaHash]
-            //Check if nodestatus is alive. If alive send If not skip
-            //Assume not alive and then we send from here.
-            fmt.Printf("Replica Node Data of Hinted Handoff: %v\n",replicaData)
-            // clientCartBytes,ErrCartData := json.Marshal(CartDataInHH)
-            // if err != nil{
-            //     fmt.Printf("cart Data conversion error %v\n",ErrCartData)
-            // }
-            cartData := map[string][]byte{userID:CartDataInHH}
-            writeMsg := &Message{
-                SenderIP:node.IP,SenderPort:node.Port,Data:cartData,
+    fmt.Printf("HHMAP: %v\n",hhMap)
+    if len(hhMap) == 0{
+        fmt.Println("Hinted Handoff is empty!")
+    }else{
+        ring := node.Ring
+        wChannel := make(chan Message)
+        for hashandUserID, CartDataInHH := range(hhMap){
+            //TODO: Split the key into hash and user id
+            arrayHashUserID := strings.Split(hashandUserID, ",")
+            fmt.Printf("arrayHashUserID[1]: %s\n", arrayHashUserID[1])
+            replicaHash,err := strconv.Atoi(arrayHashUserID[0])
+            userID := arrayHashUserID[1]
+            if err != nil{
+                fmt.Println("Hash conversion failed")
+            }else{
+                replicaData:= ring.RingNodeDataArray[replicaHash]
+                //Check if nodestatus is alive. If alive send If not skip
+                //Assume not alive and then we send from here.
+                fmt.Printf("Replica Node Data of Hinted Handoff: %v\n",replicaData)
+                //Check if replica data exists in node.
+                //If empty means perma failed. If not empty means not yet 
+                if replicaData == (ConHash.NodeData{}){
+                    fmt.Println("Replica has permanently failed. Proceed to remove related Hinted Handoff")
+                    //Remove from hinted handoff db
+                    node.DeleteHHKey(hashandUserID)
+                }else{
+                    fmt.Println("Replica exists in the ring")
+                    fmt.Println("Proceed to hintedhandoff")
+                    physicalNodeID := replicaData.CName + "0"
+                    fmt.Printf("Status of physical Node: %t\n",node.Ring.NodeStatuses[physicalNodeID])
+                    statusOfPhysicalNode := node.Ring.NodeStatuses[physicalNodeID]
+                    if statusOfPhysicalNode == true{
+                        cartData := map[string][]byte{userID:CartDataInHH}
+                        writeMsg := &Message{
+                            SenderIP:node.IP,SenderPort:node.Port,Data:cartData,
+                        }
+                        replicaNodeDataUrl := fmt.Sprintf("%s:%s",replicaData.IP,replicaData.Port)
+                        go node.HttpClientReq(writeMsg,replicaNodeDataUrl,"put",wChannel)
+                        select {
+                        case <-wChannel:
+                            fmt.Println("Hinted Handoff Success!")
+                            //Remove item from hinted handoff DB (deleteKey with the hashandUserID)
+                            node.DeleteHHKey(hashandUserID)
+                        case <-time.After(time.Duration(5) * time.Second):
+                            fmt.Println("Hinted Handoff Timeout!\n")
+                            //Skip and dun remove. try again later
+                        }
+                    }else{
+                        fmt.Println("Physical Node still fainted. Check next node")
+                    }
+                }
+
+
             }
-            replicaNodeDataUrl := fmt.Sprintf("%s:%s",replicaData.IP,replicaData.Port)
-            go node.HttpClientReq(writeMsg,replicaNodeDataUrl,"put",wChannel)
-            select {
-            case <-wChannel:
-                fmt.Println("Hinted Handoff Success!")
-            case <-time.After(time.Duration(5) * time.Second):
-                fmt.Println("Hinted Handoff Timeout!\n")
-            }
-            }   
-    }
+    
+        }
+    } 
+
 }
 func (node *Node) HHDBtoMap() map[string][]byte {
     db := node.HHQueue
@@ -819,6 +851,7 @@ func (node *Node) QueryHH(queryKey string) (map[string][]byte,error){
 }
 
 func (node *Node) DeleteHHKey(Key string) error{
+    fmt.Printf("Deleting Key %s\n",Key)
     db := node.HHQueue
 	err := db.Update(func(txn *badger.Txn) error {
 	err := txn.Delete([]byte(Key))

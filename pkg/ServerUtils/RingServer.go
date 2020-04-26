@@ -73,6 +73,7 @@ func (ringServer *RingServer) AddNodeHandler(w http.ResponseWriter, r *http.Requ
 	fmt.Printf("Actual Node Data Array Registered %v", actualNodeDataArray)
 
 	ringServer.ring.NodeStatuses[nodeID] = true
+	fmt.Printf("Ring server Node statuses: %v\n", ringServer.ring.NodeStatuses)
 	ringServer.RegisterNodeWithStetho(nodeID, nodeUrl)
 	ringServer.onRingChange(true)
 }
@@ -290,9 +291,9 @@ func NewRingServer(conRing ConHash.Ring, stethoUrl string, port string) RingServ
 func (ringServer *RingServer) onRingChange(shouldGenPrefList bool) {
 
 	if shouldGenPrefList {
-		fmt.Printf("Pref List BC: %s \n", ringServer.ring.NodePrefList)
+		fmt.Printf("Pref List BC: %v \n", ringServer.ring.NodePrefList)
 		ringServer.ring.GenPrefList()
-		fmt.Printf("Pref List AC: %s \n", ringServer.ring.NodePrefList)
+		fmt.Printf("Pref List AC: %v \n", ringServer.ring.NodePrefList)
 	}
 
 	ringServer.updateRing()

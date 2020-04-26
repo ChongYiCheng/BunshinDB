@@ -192,7 +192,7 @@ under the Coordinator Node
 			fmt.Printf("httpMsg %s\n",httpMsg)
             rand.Seed(time.Now().Unix())
             //rand.Intn(len(client.KnownNodeURLs)) - we remove this from the below arg for testing purpose
-			targetUrl := client.KnownNodeURLs[0]
+			targetUrl := client.KnownNodeURLs[rand.Intn(len(client.KnownNodeURLs))]
 			client.HttpClientReq(httpMsg,targetUrl,"put")
         default:
 		cmd := exec.Command(arrCommandStr[0], arrCommandStr[1:]...)
@@ -217,8 +217,8 @@ func main(){
     port := os.Args[1]
     //Set constants here
     //TODO need to know at least some of the members of the ring somehow
-    KnownNodeUrls := []string{fmt.Sprintf("%s:8080",currentIP),fmt.Sprintf("%s:8081",currentIP),fmt.Sprintf("%s:8082",currentIP),fmt.Sprintf("%s:8083",currentIP)}
-
+    //KnownNodeUrls := []string{fmt.Sprintf("%s:8080",currentIP),fmt.Sprintf("%s:8081",currentIP),fmt.Sprintf("%s:8082",currentIP),fmt.Sprintf("%s:8083",currentIP)}
+    KnownNodeUrls := []string{fmt.Sprintf("%s:8080",currentIP),fmt.Sprintf("%s:8081",currentIP)}
     client := &Client{currentIP,port,KnownNodeUrls}
 
 	//Start of CLI interactivity
