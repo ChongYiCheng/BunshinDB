@@ -146,7 +146,7 @@ func (node *Node) GetHandler(w http.ResponseWriter, r *http.Request) {
     fmt.Println(msg)
     query := msg.Query
     ring := node.Ring
-    dstNodeHash, dstNodeUrl , AllocErr := ring.AllocateKey(query)
+    dstNodeHash, _ , AllocErr := ring.AllocateKey(query)
     if AllocErr != nil{
         fmt.Println("Failed to allocate node to key [%s]",query)
     }
@@ -200,7 +200,7 @@ func (node *Node) GetHandler(w http.ResponseWriter, r *http.Request) {
             }
             for _,replicaNodeData := range otherReplicas{
                 if replicaNodeData.CName != node.CName{
-                    //Check if alive. If not alive, then dun need to ask node
+                    //Check if alive. If not alive, then dun ask node
                     physicalNodeID := replicaNodeData.CName + "0"
                     fmt.Printf("Status of physical Node: %t\n",node.Ring.NodeStatuses[physicalNodeID])
                     // fmt.Printf("Replica Node Status: %t\n",node.Ring.NodeStatuses[replicaNodeData.ID])
@@ -269,14 +269,14 @@ func (node *Node) GetHandler(w http.ResponseWriter, r *http.Request) {
     } else{
         fmt.Println("Get Handler - Relaying Key to the Coordinator Node")
         // TODO Implement a fallback mechanism if Coordinator Node is not alive
-
+        responseMessage := node.CheckStatusAndSend(dstNodeHash,msg,"get")
         //Need to relay get request to appropriate node
-        rChannel := make(chan Message)
-        node.HttpClientReq(msg,dstNodeUrl,"get",rChannel)
-        fmt.Println("Get Handler - Returning relayed message to client")
-        responseMessage := <-rChannel
-        fmt.Println("Received Relayed Msg from Coordinator Node")
-        close(rChannel)
+        // rChannel := make(chan Message)
+        // node.HttpClientReq(msg,dstNodeUrl,"get",rChannel)
+        // fmt.Println("Get Handler - Returning relayed message to client")
+        // responseMessage := <-rChannel
+        // fmt.Println("Received Relayed Msg from Coordinator Node")
+        // close(rChannel)
         json.NewEncoder(w).Encode(responseMessage)
     }
 }
@@ -423,7 +423,7 @@ func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
             fmt.Println("Node is relaying client request to Coordinator")
             //Need to relay put request to appropriate node
             //TODO In case appropriate node fails, check pref list and send to secondary
-            relayResponseMsg := node.CheckStatusAndSend(dstNodeHash,msg)
+            relayResponseMsg := node.CheckStatusAndSend(dstNodeHash,msg,"put")
             json.NewEncoder(w).Encode(relayResponseMsg)
         }
     }
@@ -499,7 +499,7 @@ func (node *Node) ScanDB(){
             fmt.Printf("ScanDB - dstNodeUrl is %s\n",dstNodeUrl)
             //Check status of the dst node's physical node. If down, look for next best option 
 
-            respondMessage := node.CheckStatusAndSend(dstNodeHash, writeMsg)
+            respondMessage := node.CheckStatusAndSend(dstNodeHash, writeMsg, "put")
             fmt.Println("ScanDB() completes transfer with message %v\n",respondMessage)
         }
 
@@ -858,7 +858,7 @@ func (node *Node) DeleteHHKey(Key string) error{
     return err
 }
 
-func (node *Node) CheckStatusAndSend(dstNodeHash int, msg *Message) Message{
+func (node *Node) CheckStatusAndSend(dstNodeHash int, msg *Message, endpoint string) Message{
     //Takes dstNodeHash and message as argument
     //Checks if dst node's physical node is alive. If alive, send. If not find next alive from pref list.
     dstNodeData := node.Ring.RingNodeDataArray[dstNodeHash]
@@ -879,7 +879,7 @@ func (node *Node) CheckStatusAndSend(dstNodeHash int, msg *Message) Message{
             if statusOfPhysicalNode == true{
                 fmt.Printf("Relaying to %v instead\n",nodeData)
                 newDstNodeURL := fmt.Sprintf("%s:%s",nodeData.IP,nodeData.Port)
-                node.HttpClientReq(msg,newDstNodeURL,"put",rChannel)
+                node.HttpClientReq(msg,newDstNodeURL,endpoint,rChannel)
                 respondMessage := <-rChannel
                 close(rChannel)
                 return respondMessage
