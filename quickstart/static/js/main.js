@@ -200,7 +200,7 @@ function addToCartClicked(event) {
     updateCartDB()
 }
 
-function addItemToCart(title, price, imageSrc, description) {
+function addItemToCart(title, price, imageSrc, description, itemQty) {
     var cartRow = document.createElement('div')
     cartRow.classList.add('cart-row')
     var cartItems = document.getElementsByClassName('cart-items')[0]
@@ -211,6 +211,11 @@ function addItemToCart(title, price, imageSrc, description) {
             return
         }
     }
+    var value = 1
+    if (itemQty != undefined) {
+        console.log("Value is "+itemQty)
+        value = itemQty
+    }
     var cartRowContents = `
         <div class="cart-item cart-column">
             <img class="cart-item-image" src="${imageSrc}" width="100" height="100">
@@ -219,7 +224,7 @@ function addItemToCart(title, price, imageSrc, description) {
         <span class="cart-price cart-column">${price}</span>
         <span style="display:none" class="cart-description">${description}</span>
         <div class="cart-quantity cart-column">
-            <input class="cart-quantity-input" type="number" value="1">
+            <input class="cart-quantity-input" type="number" value=${value}>
             <button class="btn btn-danger" type="button">REMOVE</button>
         </div>`
     cartRow.innerHTML = cartRowContents
@@ -330,27 +335,6 @@ function updateCartDB() {
           console.log(shoppingCartVersion)
           var versionHTML = document.getElementById("version")
           versionHTML.innerText = JSON.stringify(shoppingCartVersion)
-          ////console.log(shoppingCart)
-          ////console.log(shoppingCart)
-          //var items = shoppingCart["Items"];
-          //var nameToImg = retrieveImgSrc()
-          //console.log(items)
-          //for (var item in items) {
-          //    if (items.hasOwnProperty(item)) {
-          //        //console.log(item)
-          //        var itemName = items[item]["Name"]
-          //        var itemDesc = items[item]["Description"]
-          //        var itemPrice = items[item]["Price"]
-          //        var itemQty = items[item]["Quantity"]
-          //        //Need to retrieve image source
-          //        console.log(nameToImg[itemName])
-          //        addItemToCart(itemName,itemPrice,nameToImg[itemName],itemQty)
-          //    }
-          //}
-          //updateCartTotal()
-          
-          //addItemToCart(title, price, imageSrc, description) {
-		//document.getElementById("demo").innerHTML = this.responseText;
 	  }
 	};
 
@@ -385,7 +369,7 @@ function retrieveCartDB() {
                   var itemQty = items[item]["Quantity"]
                   //Need to retrieve image source
                   console.log(nameToImg[itemName])
-                  addItemToCart(itemName,itemPrice,nameToImg[itemName],itemQty)
+                  addItemToCart(itemName,itemPrice,nameToImg[itemName],itemDesc,itemQty)
               }
           }
           updateCartTotal()
@@ -394,13 +378,10 @@ function retrieveCartDB() {
           var versionHTML = document.getElementById("version")
           versionHTML.innerText = JSON.stringify(shoppingCartVersion)
           
-          //addItemToCart(title, price, imageSrc, description) {
-		//document.getElementById("demo").innerHTML = this.responseText;
 	  }
 	};
 
     xhr.open("POST","http://localhost:9000/get?ID="+shopperID);
-    //xhr.setRequestHeader("Content-Type", "application/json");
     xhr.send();
 }
 
@@ -409,18 +390,9 @@ function retrieveImgSrc() {
     var nameToImg = {}
     for (var i = 0; i < productImages.length; i++) {
         var productImgSrc = productImages[i].src
-        //var shopItem = button.parentElement.parentElement
         var product = productImages[i].parentElement
         var productName = product.getElementsByClassName('product__name')[0].innerText
         nameToImg[productName] = productImgSrc
     }
     return nameToImg
 }
-
-//Modal JS
-//
-//
-
-//(function(){
-//    //Login/Signup modal window - by CodyHouse.co
-//})();
