@@ -276,23 +276,6 @@ function purchaseClicked() {
 //TODO Make a function with AJAX to send JSON to client.go
 
 function updateCartDB() {
-//{
-// "ShopperID": "noblekid96",
-// "Items": {
-//  "Lakewood Guitar": {
-//   "Name": "Lakewood Guitar",
-//   "Description": "Expensive AAA guitar",
-//   "Quantity": 1,
-//   "Price": 3500
-//  }
-// },
-// "Version": {
-//  "Vector": {
-//   "A": 1,
-//   "B": 1
-//  }
-// }
-//}
 	console.log("Updating backend")
     var shoppingCartJson = {};
     var Items = {};
@@ -318,22 +301,71 @@ function updateCartDB() {
         var itemDetails = {}
         itemDetails["Name"] = itemName;
         itemDetails["Description"] = description;
-        itemDetails["Quantity"] = quantity;
-        itemDetails["Price"] = price;
+        itemDetails["Quantity"] = parseInt(quantity);
+        itemDetails["Price"] = parseFloat(price);
         Items[itemName] = itemDetails;
         console.log(Items)
 
-        //Items.push(item);
-
-        //total = total + (price * quantity)
-        //jsonObjects.append
     }
     shoppingCartJson["Items"] = Items;
-    shoppingCartJson["Version"] = {};
+    shoppingCartJson["Version"] = {"Vector":{}};
+    shoppingCartJsonString = JSON.stringify(shoppingCartJson);
+    var xhr = new XMLHttpRequest();
+
+    xhr.open("POST","http://localhost:9000/put");
+    xhr.setRequestHeader("Content-Type", "application/json");
+    xhr.send(shoppingCartJsonString);
+
     
-    console.log(shoppingCartJson)
+    console.log(shoppingCartJsonString)
 }
 //TODO Make a function with AJAX to receive JSON from client.go
+function retrieveCartDB() {
+	console.log("Querying backend")
+    shopperID = document.getElementById('Shop_User').innerText
+    var xhr = new XMLHttpRequest();
+
+    xhr.open("POST","http://localhost:9000/get?ID="+shopperID);
+    //xhr.setRequestHeader("Content-Type", "application/json");
+    xhr.send();
+
+    var shoppingCartJson = {};
+    var Items = {};
+    shoppingCartJson["ShopperID"] = document.getElementById('Shop_User').innerText
+    console.log(shoppingCartJson)
+
+    var cartItemContainer = document.getElementsByClassName('cart-items')[0]
+    var cartRows = cartItemContainer.getElementsByClassName('cart-row')
+    for (var i = 0; i < cartRows.length; i++) {
+        var cartRow = cartRows[i]
+        var itemName = cartRow.getElementsByClassName('cart-item-title')[0].innerText
+        var priceElement = cartRow.getElementsByClassName('cart-price')[0]
+        var quantityElement = cartRow.getElementsByClassName('cart-quantity-input')[0]
+        var price = parseFloat(priceElement.innerText.replace('$', ''))
+        var quantity = quantityElement.value
+        var description = cartRow.getElementsByClassName('cart-description')[0].innerText
+        console.log("Checking updateCartTotal")
+        console.log(itemName)
+        console.log(price)
+        console.log(quantity)
+        console.log(description)
+        var item = {}
+        var itemDetails = {}
+        itemDetails["Name"] = itemName;
+        itemDetails["Description"] = description;
+        itemDetails["Quantity"] = parseInt(quantity);
+        itemDetails["Price"] = parseFloat(price);
+        Items[itemName] = itemDetails;
+        console.log(Items)
+
+    }
+    shoppingCartJson["Items"] = Items;
+    shoppingCartJson["Version"] = {"Vector":{}};
+    shoppingCartJsonString = JSON.stringify(shoppingCartJson);
+
+    
+    console.log(shoppingCartJsonString)
+}
 
 //Modal JS
 //
