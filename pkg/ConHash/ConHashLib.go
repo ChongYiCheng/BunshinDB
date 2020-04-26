@@ -116,7 +116,7 @@ func (r *Ring) RegisterNodes(nodeDataArray []NodeData) []NodeData{
 	fmt.Println("Registering...")
 	ret := []NodeData{}
 	for _, nd := range nodeDataArray {
-		counter := 1
+		counter := 2
 		for {
 			//Changed to something like quadratic probing that avoids clusterring better
 			if r.RingNodeDataArray[nd.Hash].ID != "" {

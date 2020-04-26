@@ -10,6 +10,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 )
@@ -22,7 +23,7 @@ const REVIVE_NODE_ENDPOINT = "revive-node"
 
 //used only for to store and to marshal out
 type NodeStatusRestOutput struct {
-	StatusArray []map[string] interface{}
+	StatusArray []map[string] string
 }
 
 type NodeInfo struct {
@@ -276,14 +277,28 @@ func (s *StethoNode) Start(){
 func (s *StethoNode) GetStatusHandler(w http.ResponseWriter, r *http.Request) {
 	Utils.EnableCors(&w)
 	//start with empty array
-	res := NodeStatusRestOutput{StatusArray: [] map[string]interface{}{}}
+	res := NodeStatusRestOutput{StatusArray: [] map[string] string{}}
 	for k, v := range s.nodeStatuses {
-		newNodeStatus := map[string]interface{} {}
+		newNodeStatus := map[string]string {}
 		newNodeStatus["name"] = k
-		fmt.Println(v)
-		newNodeStatus["status"] = v
+
+		switch v {
+		case -1:
+			newNodeStatus["status"] = "-1"
+		case 0:
+			newNodeStatus["status"] = "0"
+		default:
+			newNodeStatus["status"] = "1"
+		}
 		res.StatusArray = append(res.StatusArray, newNodeStatus)
-	}
+
+		}
+
+
+	sort.Slice(res.StatusArray,
+		func(i, j int) bool {
+			return res.StatusArray[i]["name"] < res.StatusArray[j]["name"]
+		})
 
 	body, err := json.Marshal(res)
 	if err != nil {
