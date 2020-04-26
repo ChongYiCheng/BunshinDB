@@ -86,6 +86,7 @@ function ready() {
             console.log(user)
             user.innerHTML = stuff;
             console.log(stuff)
+            retrieveCartDB();
 			//self.toggleError(document.getElementById('signin-email'), true);
 		});
 		this.blocks[1].getElementsByTagName('form')[0].addEventListener('submit', function(event){
@@ -325,46 +326,53 @@ function retrieveCartDB() {
     shopperID = document.getElementById('Shop_User').innerText
     var xhr = new XMLHttpRequest();
 
+	xhr.onreadystatechange = function() {
+	  if (this.readyState == 4 && this.status == 200) {
+        console.log(this.responseText);	
+		//document.getElementById("demo").innerHTML = this.responseText;
+	  }
+	};
+
     xhr.open("POST","http://localhost:9000/get?ID="+shopperID);
     //xhr.setRequestHeader("Content-Type", "application/json");
     xhr.send();
 
-    var shoppingCartJson = {};
-    var Items = {};
-    shoppingCartJson["ShopperID"] = document.getElementById('Shop_User').innerText
-    console.log(shoppingCartJson)
+    //var shoppingCartJson = {};
+    //var Items = {};
+    //shoppingCartJson["ShopperID"] = document.getElementById('Shop_User').innerText
+    //console.log(shoppingCartJson)
 
-    var cartItemContainer = document.getElementsByClassName('cart-items')[0]
-    var cartRows = cartItemContainer.getElementsByClassName('cart-row')
-    for (var i = 0; i < cartRows.length; i++) {
-        var cartRow = cartRows[i]
-        var itemName = cartRow.getElementsByClassName('cart-item-title')[0].innerText
-        var priceElement = cartRow.getElementsByClassName('cart-price')[0]
-        var quantityElement = cartRow.getElementsByClassName('cart-quantity-input')[0]
-        var price = parseFloat(priceElement.innerText.replace('$', ''))
-        var quantity = quantityElement.value
-        var description = cartRow.getElementsByClassName('cart-description')[0].innerText
-        console.log("Checking updateCartTotal")
-        console.log(itemName)
-        console.log(price)
-        console.log(quantity)
-        console.log(description)
-        var item = {}
-        var itemDetails = {}
-        itemDetails["Name"] = itemName;
-        itemDetails["Description"] = description;
-        itemDetails["Quantity"] = parseInt(quantity);
-        itemDetails["Price"] = parseFloat(price);
-        Items[itemName] = itemDetails;
-        console.log(Items)
+    //var cartItemContainer = document.getElementsByClassName('cart-items')[0]
+    //var cartRows = cartItemContainer.getElementsByClassName('cart-row')
+    //for (var i = 0; i < cartRows.length; i++) {
+    //    var cartRow = cartRows[i]
+    //    var itemName = cartRow.getElementsByClassName('cart-item-title')[0].innerText
+    //    var priceElement = cartRow.getElementsByClassName('cart-price')[0]
+    //    var quantityElement = cartRow.getElementsByClassName('cart-quantity-input')[0]
+    //    var price = parseFloat(priceElement.innerText.replace('$', ''))
+    //    var quantity = quantityElement.value
+    //    var description = cartRow.getElementsByClassName('cart-description')[0].innerText
+    //    console.log("Checking updateCartTotal")
+    //    console.log(itemName)
+    //    console.log(price)
+    //    console.log(quantity)
+    //    console.log(description)
+    //    var item = {}
+    //    var itemDetails = {}
+    //    itemDetails["Name"] = itemName;
+    //    itemDetails["Description"] = description;
+    //    itemDetails["Quantity"] = parseInt(quantity);
+    //    itemDetails["Price"] = parseFloat(price);
+    //    Items[itemName] = itemDetails;
+    //    console.log(Items)
 
-    }
-    shoppingCartJson["Items"] = Items;
-    shoppingCartJson["Version"] = {"Vector":{}};
-    shoppingCartJsonString = JSON.stringify(shoppingCartJson);
+    //}
+    //shoppingCartJson["Items"] = Items;
+    //shoppingCartJson["Version"] = {"Vector":{}};
+    //shoppingCartJsonString = JSON.stringify(shoppingCartJson);
 
-    
-    console.log(shoppingCartJsonString)
+    //
+    //console.log(shoppingCartJsonString)
 }
 
 //Modal JS
