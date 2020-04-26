@@ -190,14 +190,16 @@ function addToCartClicked(event) {
     var shopItem = button.parentElement.parentElement
     var title = shopItem.getElementsByClassName('product__name')[0].innerText
     var price = shopItem.getElementsByClassName('product__price')[0].innerText
+    var description = shopItem.getElementsByClassName('product__description')[0].innerText
     var imageSrc = shopItem.getElementsByClassName('product__image')[0].src
 	console.log(title)
 	console.log(price)
-    addItemToCart(title, price, imageSrc)
+    addItemToCart(title, price, imageSrc, description)
     updateCartTotal()
+    updateCartDB()
 }
 
-function addItemToCart(title, price, imageSrc) {
+function addItemToCart(title, price, imageSrc, description) {
     var cartRow = document.createElement('div')
     cartRow.classList.add('cart-row')
     var cartItems = document.getElementsByClassName('cart-items')[0]
@@ -214,6 +216,7 @@ function addItemToCart(title, price, imageSrc) {
             <span class="cart-item-title">${title}</span>
         </div>
         <span class="cart-price cart-column">${price}</span>
+        <span style="display:none" class="cart-description">${description}</span>
         <div class="cart-quantity cart-column">
             <input class="cart-quantity-input" type="number" value="1">
             <button class="btn btn-danger" type="button">REMOVE</button>
@@ -291,21 +294,44 @@ function updateCartDB() {
 // }
 //}
 	console.log("Updating backend")
+    var shoppingCartJson = {};
+    var Items = {};
+    shoppingCartJson["ShopperID"] = document.getElementById('Shop_User').innerText
+    console.log(shoppingCartJson)
+
     var cartItemContainer = document.getElementsByClassName('cart-items')[0]
     var cartRows = cartItemContainer.getElementsByClassName('cart-row')
     for (var i = 0; i < cartRows.length; i++) {
         var cartRow = cartRows[i]
+        var itemName = cartRow.getElementsByClassName('cart-item-title')[0].innerText
         var priceElement = cartRow.getElementsByClassName('cart-price')[0]
         var quantityElement = cartRow.getElementsByClassName('cart-quantity-input')[0]
         var price = parseFloat(priceElement.innerText.replace('$', ''))
         var quantity = quantityElement.value
+        var description = cartRow.getElementsByClassName('cart-description')[0].innerText
         console.log("Checking updateCartTotal")
+        console.log(itemName)
         console.log(price)
         console.log(quantity)
-        total = total + (price * quantity)
+        console.log(description)
+        var item = {}
+        var itemDetails = {}
+        itemDetails["Name"] = itemName;
+        itemDetails["Description"] = description;
+        itemDetails["Quantity"] = quantity;
+        itemDetails["Price"] = price;
+        Items[itemName] = itemDetails;
+        console.log(Items)
+
+        //Items.push(item);
+
+        //total = total + (price * quantity)
+        //jsonObjects.append
     }
-
-
+    shoppingCartJson["Items"] = Items;
+    shoppingCartJson["Version"] = {};
+    
+    console.log(shoppingCartJson)
 }
 //TODO Make a function with AJAX to receive JSON from client.go
 
