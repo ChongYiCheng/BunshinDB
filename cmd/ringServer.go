@@ -15,9 +15,10 @@ func main() {
 	const RING_SERVER_PORT = "5001"
 	const STETHO_URL = "http://localhost:5000"
 	const STEHO_SERVER_PORT = "5000"
+    const RING_SERVER_PORT = "5001"
 	ring := ConHash.NewRing(MAX_KEY,REPLICATION_FACTOR,RW_FACTOR)
 
 	ringServer := ServerUtils.NewRingServer(*ring, STETHO_URL, RING_SERVER_PORT)
-	ringServer.RegisterWithStetho(RING_SERVER_PORT, REGISTER_ENDPOINT)
+    ringServer.RegisterWithStetho(RING_SERVER_PORT, REGISTER_ENDPOINT)
 	ringServer.Start()
 }
