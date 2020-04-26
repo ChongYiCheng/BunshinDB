@@ -226,11 +226,10 @@ func (ringServer *RingServer) Start(){
 	ringServer.HttpServerStart()
 }
 
-func (ringServer RingServer) RegisterWithStetho(ringServerPort string, endpoint string) {
+func (ringServer RingServer) RegisterWithStetho(endpoint string) {
 	postUrl := fmt.Sprintf("%s/%s", ringServer.stethoUrl, endpoint)
 	requestBody, err := json.Marshal(map[string]string {
-		//TODO: don't hardcode it
-		"ringPort": ringServerPort,
+		"ringPort": ringServer.port,
 	})
 
 	if err != nil {
