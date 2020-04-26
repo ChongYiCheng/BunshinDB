@@ -72,6 +72,7 @@ func (client *Client) GetHandler(w http.ResponseWriter, r *http.Request){
 	targetUrl := client.KnownNodeURLs[rand.Intn(len(client.KnownNodeURLs))]
     msgData, err := client.HttpClientReq(httpMsg,targetUrl,"get")
     if err != nil{
+        fmt.Println(err)
         http.Error(w, "Failed to retrieve items", 500)
     }
 
