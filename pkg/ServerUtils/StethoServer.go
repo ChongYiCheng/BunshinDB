@@ -275,13 +275,14 @@ func (s *StethoNode) Start(){
 
 func (s *StethoNode) GetStatusHandler(w http.ResponseWriter, r *http.Request) {
 	Utils.EnableCors(&w)
-	res := NodeStatusRestOutput{}
+	//start with empty array
+	res := NodeStatusRestOutput{StatusArray: [] map[string]interface{}{}}
 	for k, v := range s.nodeStatuses {
 		newNodeStatus := map[string]interface{} {}
 		newNodeStatus["name"] = k
 		fmt.Println(v)
 		newNodeStatus["status"] = v
-		res.Data = append(res.Data, newNodeStatus)
+		res.StatusArray = append(res.StatusArray, newNodeStatus)
 	}
 
 	body, err := json.Marshal(res)
