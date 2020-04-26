@@ -15,11 +15,11 @@ import(
 
 func main(){
 
-    lakeWoodGuitar := Item.Item{"Lakewood Guitar","Expensive AAA guitar",1,3500}
-    yamahaKeyboard := Item.Item{"Yamaha Keyboard","Average Keyboard",1,2000}
+    synwinViola := Item.Item{"Synwin Viola","Cheapgrade Beginner Viola",1,500}
+    // yamahaKeyboard := Item.Item{"Yamaha Keyboard","Average Keyboard",1,2000}
     version1 := VectorClock.VectorClock{map[string]int{"A":1,"B":1}}
-    shopperID := "noblekid96"
-    shoppingCart1 := ShoppingCart.ShoppingCart{shopperID,map[string]Item.Item{lakeWoodGuitar.Name:lakeWoodGuitar,yamahaKeyboard.Name:yamahaKeyboard},version1}
+    shopperID := "ChongYiCheng"
+    shoppingCart1 := ShoppingCart.ShoppingCart{shopperID,map[string]Item.Item{synwinViola.Name:synwinViola},version1}
     marshalTest,_ := json.Marshal(shoppingCart1)
     fmt.Println(marshalTest)
     var unMarshalledCart ShoppingCart.ShoppingCart
@@ -27,5 +27,5 @@ func main(){
     fmt.Println(unMarshalledCart)
 	file, _ := json.MarshalIndent(shoppingCart1, "", " ")
 
-	_ = ioutil.WriteFile("test1.json", file, 0644)
+	_ = ioutil.WriteFile("test_yc_1.json", file, 0644)
 }
