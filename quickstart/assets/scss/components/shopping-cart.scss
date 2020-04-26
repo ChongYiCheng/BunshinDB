@@ -1,0 +1,139 @@
+.content-section {
+    margin: 1em;
+}
+
+.container {
+    max-width: 100%;
+    margin: 0 25%;
+    padding: 0 1.5em;
+}
+.section-header {
+    font-family: "Metal Mania";
+    font-weight: normal;
+    color: #333;
+    text-align: center;
+    font-size: 2.5em;
+}
+
+.cart-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    font-weight: bold;
+    font-size: 2em;
+    color: #333;
+}
+
+.cart-column {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-right: 1.5em;
+    padding-bottom: 10px;
+    margin-top: 10px;
+}
+
+.cart-row {
+    display: flex;
+    border-bottom: 1px solid black;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+
+}
+
+.cart-item {
+    width: 20%;
+    align-items: center;
+}
+
+.cart-price {
+    width: 10%;
+    font-size: 2em;
+    color: #333;
+    align-items: center;
+
+}
+
+.cart-quantity {
+    display: flex;
+    flex-direction: row;
+    width: 20%;
+}
+
+.cart-item-title {
+    color: #333;
+    margin-left: .5em;
+    font-size: 1.2em;
+}
+
+.cart-item-image {
+    width: 75px;
+    height: auto;
+    border-radius: 10px;
+}
+
+.cart-row:last-child {
+    border-bottom: 1px solid black;
+}
+
+.cart-row:last-child .cart-column {
+    border: none;
+}
+
+.cart-total {
+    text-align: end;
+    border-bottom: 1px solid black;
+    margin-top: 10px;
+    margin-right: 10px;
+}
+
+.cart-total-title {
+	display: flex;
+    align-items: center;
+    justify-content: center;
+
+    font-weight: bold;
+    font-size: 2em;
+    color: black;
+    margin-right: 20px;
+}
+
+.cart-total-price {
+	display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #333;
+    font-size: 1.1em;
+}
+
+.btn-purchase {
+    display: block;
+    margin: 40px auto 80px auto;
+    font-size: 1.75em;
+}
+
+.btn-danger {
+    color: white;
+    background-color: #EB5757;
+    border: none;
+    border-radius: .3em;
+    font-weight: bold;
+}
+
+.btn-danger:hover {
+    background-color: #CC4C4C;
+}
+
+.cart-quantity-input {
+    height: 34px;
+    width: 50px;
+    border-radius: 5px;
+    border: 1px solid #56CCF2;
+    background-color: #eee;
+    color: #333;
+    padding: 0;
+    text-align: center;
+    font-size: 1.2em;
+    margin-right: 25px;
+}

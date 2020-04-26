@@ -1,0 +1,35 @@
+---
+label: item
+hide_body: true
+fields:
+- name: name
+  type: text
+  config:
+    required: false
+  label: name
+  description: Product Name
+- name: price
+  type: text
+  config:
+    required: false
+  label: price
+  description: item price
+- name: description
+  type: text
+  config:
+    required: false
+  label: description
+- name: image
+  type: file
+  config:
+    maxSize: 250
+  label: image
+  description: item image
+pages:
+- quickstart/content/products/bubbletea.md
+- quickstart/content/products/lakewood.md
+- quickstart/content/products/mcspicy.md
+- quickstart/content/products/pearldrums.md
+- quickstart/content/products/stradivarius.md
+- quickstart/content/products/toiletroll.md
+- quickstart/content/products/viola.md
