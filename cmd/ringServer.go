@@ -12,6 +12,7 @@ func main() {
 	const RW_FACTOR = 1;
 	const REGISTER_ENDPOINT = "set-ring"
 	// const STETHO_URL = "http://192.168.1.142:5000"
+	const RING_SERVER_PORT = "5001"
 	const STETHO_URL = "http://localhost:5000"
 	const STEHO_SERVER_PORT = "5000"
 	const RING_SERVER_PORT = "5001"
