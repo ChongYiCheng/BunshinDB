@@ -435,7 +435,7 @@ func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
                     //     SenderIP:node.IP,SenderPort:node.Port,Data:cartData,
                     // }
                     responseMessage := &Message{
-                        SenderIP:node.IP,SenderPort:node.Port,Data:msgData,
+                        SenderIP:node.IP,SenderPort:node.Port,Data:cartData,
                     }
                     fmt.Printf("response message after success replication: %v\n",*responseMessage)
                     w.WriteHeader(http.StatusOK)

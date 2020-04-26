@@ -309,12 +309,50 @@ function updateCartDB() {
         itemDetails["Price"] = parseFloat(price);
         Items[itemName] = itemDetails;
         console.log(Items)
-
     }
     shoppingCartJson["Items"] = Items;
-    shoppingCartJson["Version"] = {"Vector":{}};
+    versionHTML = document.getElementById("version")
+    if (versionHTML.innerText.length != 0) {
+        VersionJSON = JSON.parse(versionHTML.innerText)
+        console.log("Version JSON is"+VersionJSON)
+        shoppingCartJson["Version"] = VersionJSON;
+    } else{
+        shoppingCartJson["Version"] = {"Vector":{}};
+    }
     shoppingCartJsonString = JSON.stringify(shoppingCartJson);
     var xhr = new XMLHttpRequest();
+
+	xhr.onreadystatechange = function() {
+	  if (this.readyState == 4 && this.status == 200) {
+          console.log(this.responseText);	
+          var shoppingCart = JSON.parse(JSON.parse(this.responseText));
+          var shoppingCartVersion = shoppingCart["Version"]
+          console.log(shoppingCartVersion)
+          var versionHTML = document.getElementById("version")
+          versionHTML.innerText = JSON.stringify(shoppingCartVersion)
+          ////console.log(shoppingCart)
+          ////console.log(shoppingCart)
+          //var items = shoppingCart["Items"];
+          //var nameToImg = retrieveImgSrc()
+          //console.log(items)
+          //for (var item in items) {
+          //    if (items.hasOwnProperty(item)) {
+          //        //console.log(item)
+          //        var itemName = items[item]["Name"]
+          //        var itemDesc = items[item]["Description"]
+          //        var itemPrice = items[item]["Price"]
+          //        var itemQty = items[item]["Quantity"]
+          //        //Need to retrieve image source
+          //        console.log(nameToImg[itemName])
+          //        addItemToCart(itemName,itemPrice,nameToImg[itemName],itemQty)
+          //    }
+          //}
+          //updateCartTotal()
+          
+          //addItemToCart(title, price, imageSrc, description) {
+		//document.getElementById("demo").innerHTML = this.responseText;
+	  }
+	};
 
     xhr.open("POST","http://localhost:9000/put");
     xhr.setRequestHeader("Content-Type", "application/json");
@@ -351,6 +389,10 @@ function retrieveCartDB() {
               }
           }
           updateCartTotal()
+          var shoppingCartVersion = shoppingCart["Version"]
+          console.log(shoppingCartVersion)
+          var versionHTML = document.getElementById("version")
+          versionHTML.innerText = JSON.stringify(shoppingCartVersion)
           
           //addItemToCart(title, price, imageSrc, description) {
 		//document.getElementById("demo").innerHTML = this.responseText;
