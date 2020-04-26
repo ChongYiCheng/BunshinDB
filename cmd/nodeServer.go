@@ -269,10 +269,12 @@ func (node *Node) GetHandler(w http.ResponseWriter, r *http.Request) {
     } else{
         fmt.Println("Get Handler - Relaying Key to the Coordinator Node")
         // TODO Implement a fallback mechanism if Coordinator Node is not alive
-        var responseMessage *Message
-        go func(dstNodeHash int,responseMessage *Message,msgToSend *Message) {
-            responseMessage = node.CheckStatusAndSend(dstNodeHash,msgToSend,"get")
-        }(dstNodeHash,responseMessage,msg)
+        rChannel := make(chan Message)
+        go func(dstNodeHash int,msgChnl chan Message, msgToSend *Message) {
+            //Check status of the dst node's physical node. If down, look for next best option 
+            node.CheckStatusAndSend(dstNodeHash,msgChnl,msgToSend,"get")
+        }(dstNodeHash,rChannel,msg)
+        responseMessage := <-rChannel
         //Need to relay get request to appropriate node
         // rChannel := make(chan Message)
         // node.HttpClientReq(msg,dstNodeUrl,"get",rChannel)
@@ -281,7 +283,7 @@ func (node *Node) GetHandler(w http.ResponseWriter, r *http.Request) {
         // fmt.Println("Received Relayed Msg from Coordinator Node")
         // close(rChannel)
         fmt.Printf("Response message from coordinator node: %v\n",responseMessage)
-        json.NewEncoder(w).Encode(responseMessage)
+        json.NewEncoder(w).Encode(&responseMessage)
     }
 }
 
@@ -449,12 +451,16 @@ func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
             fmt.Println("Node is relaying client request to Coordinator")
             //Need to relay put request to appropriate node
             //TODO In case appropriate node fails, check pref list and send to secondary
-            var relayResponseMsg *Message
-            go func(dstNodeHash int, responseMessage *Message,msgToSend *Message) {
-                responseMessage = node.CheckStatusAndSend(dstNodeHash,msgToSend,"put")
-            }(dstNodeHash,relayResponseMsg,msg)
+            rChannel := make(chan Message)
+            go func(dstNodeHash int,msgChnl chan Message,msgToSend *Message) {
+                //Check status of the dst node's physical node. If down, look for next best option 
+                node.CheckStatusAndSend(dstNodeHash,msgChnl,msgToSend,"put")
+            }(dstNodeHash,rChannel,msg)
+            relayResponseMsg := <-rChannel
+
+        
             fmt.Printf("Put handler relayResponseMsg: %v\n",relayResponseMsg)
-            json.NewEncoder(w).Encode(relayResponseMsg)
+            json.NewEncoder(w).Encode(&relayResponseMsg)
         }
     }
 }
@@ -527,13 +533,16 @@ func (node *Node) ScanDB(){
                 SenderIP:node.IP,SenderPort:node.Port,Data:cartData,
             }
             fmt.Printf("ScanDB - dstNodeUrl is %s\n",dstNodeUrl)
-            //Check status of the dst node's physical node. If down, look for next best option 
-
-            var responseMessage *Message
-            go func(dstNodeHash int,responseMessage *Message,msgToSend *Message) {
-                responseMessage = node.CheckStatusAndSend(dstNodeHash,msgToSend,"put")
-            }(dstNodeHash,responseMessage,writeMsg)
-            fmt.Println("ScanDB() completes transfer with message %v\n",*responseMessage)
+            fmt.Printf("ScanDB - dstNodeHash is ")
+            //TODO: Fix runtimeerror that occurs here. Issue unknown
+            //Error 2020/04/27 01:04:29 http: panic serving 127.0.0.1:49185: runtime error: invalid memory address or nil pointer dereference
+            rChannel := make(chan Message)
+            go func(dstNodeHash int,msgChnl chan Message,msgToSend *Message) {
+                //Check status of the dst node's physical node. If down, look for next best option 
+                node.CheckStatusAndSend(dstNodeHash,msgChnl,msgToSend,"put")
+            }(dstNodeHash,rChannel,writeMsg)
+            responseMessage := <-rChannel
+            fmt.Printf("ScanDB() completes transfer with message %v\n",responseMessage)
         }
 
 	  }
@@ -893,11 +902,11 @@ func (node *Node) DeleteHHKey(Key string) error{
     return err
 }
 
-func (node *Node) CheckStatusAndSend(dstNodeHash int, msg *Message, endpoint string) *Message{
+func (node *Node) CheckStatusAndSend(dstNodeHash int, msgChnl chan Message, msg *Message, endpoint string){
     //Takes dstNodeHash and message as argument
     //Checks if dst node's physical node is alive. If alive, send. If not find next alive from pref list.
     dstNodeData := node.Ring.RingNodeDataArray[dstNodeHash]
-    rChannel := make(chan Message)
+    
     dstPhysicalNodeID := dstNodeData.CName + "0"
     dstNodeURL := fmt.Sprintf("%s:%s",dstNodeData.IP,dstNodeData.Port)
     fmt.Printf("Status of physical Node: %t\n",node.Ring.NodeStatuses[dstPhysicalNodeID])
@@ -914,21 +923,13 @@ func (node *Node) CheckStatusAndSend(dstNodeHash int, msg *Message, endpoint str
             if statusOfPhysicalNode == true{
                 fmt.Printf("Relaying to %v instead\n",nodeData)
                 newDstNodeURL := fmt.Sprintf("%s:%s",nodeData.IP,nodeData.Port)
-                node.HttpClientReq(msg,newDstNodeURL,endpoint,rChannel)
-                respondMessage := <-rChannel
-                close(rChannel)
-                return &respondMessage
+                node.HttpClientReq(msg,newDstNodeURL,endpoint,msgChnl)
             }
         }
     }else{
-        node.HttpClientReq(msg,dstNodeURL,"put",rChannel)
-        respondMessage := <-rChannel
-        fmt.Printf("Responde Message :%v\n",respondMessage)
-        close(rChannel)
-        return &respondMessage
+        fmt.Println("Sending to Physical Node of Coordinator Node ")
+        node.HttpClientReq(msg,dstNodeURL,endpoint,msgChnl)
     }
-    fmt.Println("No response message from CheckStatusAndSend")
-    return &Message{}
 }
 
 func (node *Node) runCommand(commandStr string) error {
