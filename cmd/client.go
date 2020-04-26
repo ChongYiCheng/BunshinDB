@@ -48,7 +48,6 @@ func (client *Client) HttpClientReq(msg *Message,targetUrl string,endpoint strin
     req.Header.Set("Content-Type", "application/json")
 
     res, err := httpClient.Do(req)
-    defer res.Body.Close()
     if err != nil{
         fmt.Printf("Cannot reach server at %v\n",url)
         unreachableUrl := targetUrl
@@ -58,12 +57,16 @@ func (client *Client) HttpClientReq(msg *Message,targetUrl string,endpoint strin
             fmt.Printf("Client sending to Node %s\n",client.KnownNodeURLs[dstNodeidx])
             targetUrl = client.KnownNodeURLs[dstNodeidx]
         }
-        go client.HttpClientReq(msg, targetUrl, endpoint)
+        //YC: I think no need to go routine this.
+        client.HttpClientReq(msg, targetUrl, endpoint)
+        // go client.HttpClientReq(msg, targetUrl, endpoint)
         return
     }
-    // defer res.Body.Close()
+    defer res.Body.Close()
     fmt.Println("HTTP Client Req - Got a response")
     
+
+
     // always close the response-body, even if content is not required
 
     if err != nil {
@@ -77,7 +80,6 @@ func (client *Client) HttpClientReq(msg *Message,targetUrl string,endpoint strin
             //TODO Need to add semantic reconciliation handling case
             //Conflicting shopping cart versions, need to perform semantic reconciliation
             client.SemanticReconciliation(resMsg)
-            //TODO: and write back to coordinator
         } else{
             for k,v := range resMsg.Data{
                 var shoppingCart ShoppingCart.ShoppingCart
@@ -94,6 +96,7 @@ func (client *Client) HttpClientReq(msg *Message,targetUrl string,endpoint strin
 
 func (client *Client) SemanticReconciliation(conflictedMessage Message){
     //Need to collate list of conflicted shopping carts then merge them
+    fmt.Println("Client running Semantic Reconciliation")
     listOfConflictingCarts := []ShoppingCart.ShoppingCart{}
     msgData := conflictedMessage.Data
     for _,v := range msgData{

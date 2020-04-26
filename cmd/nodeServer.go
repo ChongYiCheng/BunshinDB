@@ -270,9 +270,9 @@ func (node *Node) GetHandler(w http.ResponseWriter, r *http.Request) {
         fmt.Println("Get Handler - Relaying Key to the Coordinator Node")
         // TODO Implement a fallback mechanism if Coordinator Node is not alive
         var responseMessage *Message
-        go func(responseMessage *Message,msgToSend *Message) {
+        go func(dstNodeHash int,responseMessage *Message,msgToSend *Message) {
             responseMessage = node.CheckStatusAndSend(dstNodeHash,msgToSend,"get")
-        }(responseMessage,msg)
+        }(dstNodeHash,responseMessage,msg)
         //Need to relay get request to appropriate node
         // rChannel := make(chan Message)
         // node.HttpClientReq(msg,dstNodeUrl,"get",rChannel)
@@ -342,7 +342,6 @@ func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
                     json.NewEncoder(w).Encode(responseMessage)
                 }
             } else{
-                //TODO: fixing put handler bug - some issues here? cause it got stuck here
                 fmt.Println("Node is initiating W process")
                 fmt.Printf("This is because the msg was sent by %s:%s\n",msg.SenderIP,msg.SenderPort)
                 //This node has to take initiative to start the W process.
@@ -399,6 +398,13 @@ func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
                             fmt.Printf("Node statuses :%v\n",node.Ring.NodeStatuses)
                             replicaNodeHash := replicaNodeData.Hash
                             node.RunHintedHandOff(replicaNodeHash,key,[]byte(clientCartBytes))
+                            responseMessage := &Message{
+                                SenderIP:node.IP,SenderPort:node.Port,Data:msgData,
+                            }
+                            w.WriteHeader(http.StatusOK)
+                            //TODO: Fix the issue where responseMessage not sent to Client
+                            json.NewEncoder(w).Encode(responseMessage)
+                            return
                             //Save into HintedHandoff
                         }else{
                             fmt.Println("Proceed to send to replica")
@@ -429,6 +435,7 @@ func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
                     responseMessage := &Message{
                         SenderIP:node.IP,SenderPort:node.Port,Data:msgData,
                     }
+                    fmt.Printf("response message after success replication: %v\n",*responseMessage)
                     w.WriteHeader(http.StatusOK)
                     //TODO: Fix the issue where responseMessage not sent to Client
                     json.NewEncoder(w).Encode(responseMessage)
@@ -443,9 +450,9 @@ func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
             //Need to relay put request to appropriate node
             //TODO In case appropriate node fails, check pref list and send to secondary
             var relayResponseMsg *Message
-            go func(responseMessage *Message,msgToSend *Message) {
+            go func(dstNodeHash int, responseMessage *Message,msgToSend *Message) {
                 responseMessage = node.CheckStatusAndSend(dstNodeHash,msgToSend,"put")
-            }(relayResponseMsg,msg)
+            }(dstNodeHash,relayResponseMsg,msg)
             fmt.Printf("Put handler relayResponseMsg: %v\n",relayResponseMsg)
             json.NewEncoder(w).Encode(relayResponseMsg)
         }
@@ -523,10 +530,10 @@ func (node *Node) ScanDB(){
             //Check status of the dst node's physical node. If down, look for next best option 
 
             var responseMessage *Message
-            go func(responseMessage *Message,msgToSend *Message) {
+            go func(dstNodeHash int,responseMessage *Message,msgToSend *Message) {
                 responseMessage = node.CheckStatusAndSend(dstNodeHash,msgToSend,"put")
-            }(responseMessage,writeMsg)
-            fmt.Println("ScanDB() completes transfer with message %v\n",responseMessage)
+            }(dstNodeHash,responseMessage,writeMsg)
+            fmt.Println("ScanDB() completes transfer with message %v\n",*responseMessage)
         }
 
 	  }
@@ -920,6 +927,7 @@ func (node *Node) CheckStatusAndSend(dstNodeHash int, msg *Message, endpoint str
         close(rChannel)
         return &respondMessage
     }
+    fmt.Println("No response message from CheckStatusAndSend")
     return &Message{}
 }
 
