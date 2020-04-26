@@ -255,6 +255,7 @@ function removeCartItem(event) {
     var buttonClicked = event.target
     buttonClicked.parentElement.parentElement.remove()
     updateCartTotal()
+    updateCartDB()
 }
 
 function quantityChanged(event) {
@@ -263,6 +264,7 @@ function quantityChanged(event) {
         input.value = 1
     }
     updateCartTotal()
+    updateCartDB()
 }
 
 function purchaseClicked() {
@@ -272,6 +274,7 @@ function purchaseClicked() {
         cartItems.removeChild(cartItems.firstChild)
     }
     updateCartTotal()
+    updateCartDB()
 }
 
 //TODO Make a function with AJAX to send JSON to client.go
@@ -306,12 +309,50 @@ function updateCartDB() {
         itemDetails["Price"] = parseFloat(price);
         Items[itemName] = itemDetails;
         console.log(Items)
-
     }
     shoppingCartJson["Items"] = Items;
-    shoppingCartJson["Version"] = {"Vector":{}};
+    versionHTML = document.getElementById("version")
+    if (versionHTML.innerText.length != 0) {
+        VersionJSON = JSON.parse(versionHTML.innerText)
+        console.log("Version JSON is"+VersionJSON)
+        shoppingCartJson["Version"] = VersionJSON;
+    } else{
+        shoppingCartJson["Version"] = {"Vector":{}};
+    }
     shoppingCartJsonString = JSON.stringify(shoppingCartJson);
     var xhr = new XMLHttpRequest();
+
+	xhr.onreadystatechange = function() {
+	  if (this.readyState == 4 && this.status == 200) {
+          console.log(this.responseText);	
+          var shoppingCart = JSON.parse(JSON.parse(this.responseText));
+          var shoppingCartVersion = shoppingCart["Version"]
+          console.log(shoppingCartVersion)
+          var versionHTML = document.getElementById("version")
+          versionHTML.innerText = JSON.stringify(shoppingCartVersion)
+          ////console.log(shoppingCart)
+          ////console.log(shoppingCart)
+          //var items = shoppingCart["Items"];
+          //var nameToImg = retrieveImgSrc()
+          //console.log(items)
+          //for (var item in items) {
+          //    if (items.hasOwnProperty(item)) {
+          //        //console.log(item)
+          //        var itemName = items[item]["Name"]
+          //        var itemDesc = items[item]["Description"]
+          //        var itemPrice = items[item]["Price"]
+          //        var itemQty = items[item]["Quantity"]
+          //        //Need to retrieve image source
+          //        console.log(nameToImg[itemName])
+          //        addItemToCart(itemName,itemPrice,nameToImg[itemName],itemQty)
+          //    }
+          //}
+          //updateCartTotal()
+          
+          //addItemToCart(title, price, imageSrc, description) {
+		//document.getElementById("demo").innerHTML = this.responseText;
+	  }
+	};
 
     xhr.open("POST","http://localhost:9000/put");
     xhr.setRequestHeader("Content-Type", "application/json");
@@ -328,7 +369,32 @@ function retrieveCartDB() {
 
 	xhr.onreadystatechange = function() {
 	  if (this.readyState == 4 && this.status == 200) {
-        console.log(this.responseText);	
+          //console.log(this.responseText);	
+          var shoppingCart = JSON.parse(JSON.parse(this.responseText));
+          //console.log(shoppingCart)
+          //console.log(shoppingCart)
+          var items = shoppingCart["Items"];
+          var nameToImg = retrieveImgSrc()
+          console.log(items)
+          for (var item in items) {
+              if (items.hasOwnProperty(item)) {
+                  //console.log(item)
+                  var itemName = items[item]["Name"]
+                  var itemDesc = items[item]["Description"]
+                  var itemPrice = items[item]["Price"]
+                  var itemQty = items[item]["Quantity"]
+                  //Need to retrieve image source
+                  console.log(nameToImg[itemName])
+                  addItemToCart(itemName,itemPrice,nameToImg[itemName],itemQty)
+              }
+          }
+          updateCartTotal()
+          var shoppingCartVersion = shoppingCart["Version"]
+          console.log(shoppingCartVersion)
+          var versionHTML = document.getElementById("version")
+          versionHTML.innerText = JSON.stringify(shoppingCartVersion)
+          
+          //addItemToCart(title, price, imageSrc, description) {
 		//document.getElementById("demo").innerHTML = this.responseText;
 	  }
 	};
@@ -336,43 +402,19 @@ function retrieveCartDB() {
     xhr.open("POST","http://localhost:9000/get?ID="+shopperID);
     //xhr.setRequestHeader("Content-Type", "application/json");
     xhr.send();
+}
 
-    //var shoppingCartJson = {};
-    //var Items = {};
-    //shoppingCartJson["ShopperID"] = document.getElementById('Shop_User').innerText
-    //console.log(shoppingCartJson)
-
-    //var cartItemContainer = document.getElementsByClassName('cart-items')[0]
-    //var cartRows = cartItemContainer.getElementsByClassName('cart-row')
-    //for (var i = 0; i < cartRows.length; i++) {
-    //    var cartRow = cartRows[i]
-    //    var itemName = cartRow.getElementsByClassName('cart-item-title')[0].innerText
-    //    var priceElement = cartRow.getElementsByClassName('cart-price')[0]
-    //    var quantityElement = cartRow.getElementsByClassName('cart-quantity-input')[0]
-    //    var price = parseFloat(priceElement.innerText.replace('$', ''))
-    //    var quantity = quantityElement.value
-    //    var description = cartRow.getElementsByClassName('cart-description')[0].innerText
-    //    console.log("Checking updateCartTotal")
-    //    console.log(itemName)
-    //    console.log(price)
-    //    console.log(quantity)
-    //    console.log(description)
-    //    var item = {}
-    //    var itemDetails = {}
-    //    itemDetails["Name"] = itemName;
-    //    itemDetails["Description"] = description;
-    //    itemDetails["Quantity"] = parseInt(quantity);
-    //    itemDetails["Price"] = parseFloat(price);
-    //    Items[itemName] = itemDetails;
-    //    console.log(Items)
-
-    //}
-    //shoppingCartJson["Items"] = Items;
-    //shoppingCartJson["Version"] = {"Vector":{}};
-    //shoppingCartJsonString = JSON.stringify(shoppingCartJson);
-
-    //
-    //console.log(shoppingCartJsonString)
+function retrieveImgSrc() {
+    var productImages = document.getElementsByClassName('product__image')
+    var nameToImg = {}
+    for (var i = 0; i < productImages.length; i++) {
+        var productImgSrc = productImages[i].src
+        //var shopItem = button.parentElement.parentElement
+        var product = productImages[i].parentElement
+        var productName = product.getElementsByClassName('product__name')[0].innerText
+        nameToImg[productName] = productImgSrc
+    }
+    return nameToImg
 }
 
 //Modal JS
