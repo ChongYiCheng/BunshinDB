@@ -291,7 +291,8 @@ func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
     ring := node.Ring
     fmt.Println("Put Handler - Allocating Key")
     for key, _ := range msgData{
-        dstNodeHash, dstNodeUrl , AllocErr := ring.AllocateKey(key) //Get the destination node of this key
+        //dstNodeHash, dstNodeUrl , AllocErr := ring.AllocateKey(key) //Get the destination node of this key
+        dstNodeHash, _ , AllocErr := ring.AllocateKey(key)
         if AllocErr != nil{
             fmt.Println("Failed to allocate node to key [%s]",key)
             http.Error(w, err.Error(), 400)
@@ -380,8 +381,6 @@ func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
                         if statusOfPhysicalNode == false{
                             fmt.Println("Go into Hinted Handoff")
                             fmt.Printf("Node statuses :%v\n",node.Ring.NodeStatuses)
-                            // fmt.Printf("Key: %s\n",key)
-                            // fmt.Printf("Cart Data: %v\n",cartData)
                             replicaNodeHash := replicaNodeData.Hash
                             node.RunHintedHandOff(replicaNodeHash,key,[]byte(clientCartBytes))
                             //Save into HintedHandoff
@@ -393,7 +392,6 @@ func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
                                 *replicationPointer = *replicationPointer + 1
                             }(replicaNodeData,repPointer)
                         }
-                        
                     }else{
                         fmt.Println("Skip cause ownself")
                     }
@@ -414,41 +412,9 @@ func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
         } else{
             fmt.Println("Node is relaying client request to Coordinator")
             //Need to relay put request to appropriate node
-
             //TODO In case appropriate node fails, check pref list and send to secondary
-
-            dstNodeData := ring.RingNodeDataArray[dstNodeHash]
-            //dstNodeIPPort := dstNodeUrl
-            rChannel := make(chan Message)
-            dstPhysicalNodeID := dstNodeData.CName + "0"
-            fmt.Printf("Status of physical Node: %t\n",node.Ring.NodeStatuses[dstPhysicalNodeID])
-            // fmt.Printf("Replica Node Status: %t\n",node.Ring.NodeStatuses[replicaNodeData.ID])
-            statusOfdstPhysicalNode := node.Ring.NodeStatuses[dstPhysicalNodeID]
-            //Check if physical node of dstNode is alive. If not alive, send to next alive, else send to node
-            if statusOfdstPhysicalNode == false{
-                //Look for next healthy node and send it
-                fmt.Println("Physical Node of Coordinator Node is down")
-                fmt.Printf("node.Ring.NodePrefList[dstNodeHash]: %v\n",node.Ring.NodePrefList[dstNodeHash])
-                for _, nodeData := range node.Ring.NodePrefList[dstNodeHash]{
-                    //Look through preference list for the next healthy node to send to
-                    physicalNodeID := nodeData.CName + "0"
-                    statusOfPhysicalNode := node.Ring.NodeStatuses[physicalNodeID]
-                    if statusOfPhysicalNode == true{
-                        fmt.Printf("Relaying to %v instead\n",nodeData)
-                        newDstNodeUrl := fmt.Sprintf("%s:%s",nodeData.IP,nodeData.Port)
-                        node.HttpClientReq(msg,newDstNodeUrl,"put",rChannel)
-                        relayResponseMsg := <-rChannel
-                        close(rChannel)
-                        json.NewEncoder(w).Encode(relayResponseMsg)
-                        break
-                    }
-                }
-            }else{
-                node.HttpClientReq(msg,dstNodeUrl,"put",rChannel)
-                relayResponseMsg := <-rChannel
-                close(rChannel)
-                json.NewEncoder(w).Encode(relayResponseMsg)
-            }
+            relayResponseMsg := node.CheckStatusAndSend(dstNodeHash,msg)
+            json.NewEncoder(w).Encode(relayResponseMsg)
         }
     }
 }
@@ -516,41 +482,15 @@ func (node *Node) ScanDB(){
                 fmt.Errorf("Error in retrieving cartData from DB")
             }
 	        fmt.Printf("Sending key=%s, value=%s to Node %s\n", k, cartBytes, node.Ring.RingNodeDataArray[dstNodeHash].ID)
-            rChannel := make(chan Message)
             cartData := map[string][]byte{key:[]byte(cartBytes)}
             writeMsg := &Message{
                 SenderIP:node.IP,SenderPort:node.Port,Data:cartData,
             }
             fmt.Printf("ScanDB - dstNodeUrl is %s\n",dstNodeUrl)
             //Check status of the dst node's physical node. If down, look for next best option 
-            dstNodeData := node.Ring.RingNodeDataArray[dstNodeHash]
-            dstPhysicalNodeID := dstNodeData.CName + "0"
-            fmt.Printf("Status of physical Node: %t\n",node.Ring.NodeStatuses[dstPhysicalNodeID])
-            // fmt.Printf("Replica Node Status: %t\n",node.Ring.NodeStatuses[replicaNodeData.ID])
-            statusOfdstPhysicalNode := node.Ring.NodeStatuses[dstPhysicalNodeID]
-            if statusOfdstPhysicalNode == false{
-                //Look for next healthy node and send it
-                fmt.Println("Physical Node of Coordinator Node is down")
-                fmt.Printf("node.Ring.NodePrefList[dstNodeHash]: %v\n",node.Ring.NodePrefList[dstNodeHash])
-                for _, nodeData := range node.Ring.NodePrefList[dstNodeHash]{
-                    //Look through preference list for the next healthy node to send to
-                    physicalNodeID := nodeData.CName + "0"
-                    statusOfPhysicalNode := node.Ring.NodeStatuses[physicalNodeID]
-                    if statusOfPhysicalNode == true{
-                        fmt.Printf("Relaying to %v instead\n",nodeData)
-                        newDstNodeUrl := fmt.Sprintf("%s:%s",nodeData.IP,nodeData.Port)
-                        node.HttpClientReq(writeMsg,newDstNodeUrl,"put",rChannel)
-                        <-rChannel
-                        close(rChannel)
-                        break
-                    }
-                }
-            }else{
-                node.HttpClientReq(writeMsg,dstNodeUrl,"put",rChannel)
-                <-rChannel
-                close(rChannel)
-            }
 
+            respondMessage := node.CheckStatusAndSend(dstNodeHash, writeMsg)
+            fmt.Println("ScanDB() completes transfer with message %v\n",respondMessage)
         }
 
 	  }
@@ -794,6 +734,7 @@ func (node *Node) CheckHintedHandOff(){
     } 
 
 }
+
 func (node *Node) HHDBtoMap() map[string][]byte {
     db := node.HHQueue
     hhQueue := make(map[string][]byte)
@@ -906,6 +847,43 @@ func (node *Node) DeleteHHKey(Key string) error{
 	})
     return err
 }
+
+func (node *Node) CheckStatusAndSend(dstNodeHash int, msg *Message) Message{
+    //Takes dstNodeHash and message as argument
+    //Checks if dst node's physical node is alive. If alive, send. If not find next alive from pref list.
+    dstNodeData := node.Ring.RingNodeDataArray[dstNodeHash]
+    rChannel := make(chan Message)
+    dstPhysicalNodeID := dstNodeData.CName + "0"
+    dstNodeURL := fmt.Sprintf("%s:%s",dstNodeData.IP,dstNodeData.Port)
+    fmt.Printf("Status of physical Node: %t\n",node.Ring.NodeStatuses[dstPhysicalNodeID])
+    // fmt.Printf("Replica Node Status: %t\n",node.Ring.NodeStatuses[replicaNodeData.ID])
+    statusOfdstPhysicalNode := node.Ring.NodeStatuses[dstPhysicalNodeID]
+    if statusOfdstPhysicalNode == false{
+        //Look for next healthy node and send it
+        fmt.Println("Physical Node of Coordinator Node is down")
+        fmt.Printf("node.Ring.NodePrefList[dstNodeHash]: %v\n",node.Ring.NodePrefList[dstNodeHash])
+        for _, nodeData := range node.Ring.NodePrefList[dstNodeHash]{
+            //Look through preference list for the next healthy node to send to
+            physicalNodeID := nodeData.CName + "0"
+            statusOfPhysicalNode := node.Ring.NodeStatuses[physicalNodeID]
+            if statusOfPhysicalNode == true{
+                fmt.Printf("Relaying to %v instead\n",nodeData)
+                newDstNodeURL := fmt.Sprintf("%s:%s",nodeData.IP,nodeData.Port)
+                node.HttpClientReq(msg,newDstNodeURL,"put",rChannel)
+                respondMessage := <-rChannel
+                close(rChannel)
+                return respondMessage
+            }
+        }
+    }else{
+        node.HttpClientReq(msg,dstNodeURL,"put",rChannel)
+        respondMessage := <-rChannel
+        close(rChannel)
+        return respondMessage
+    }
+    return Message{}
+}
+
 func (node *Node) runCommand(commandStr string) error {
     // To-Do : Add a command to view node's attributes and variables
 	commandStr = strings.TrimSuffix(commandStr, "\n")
