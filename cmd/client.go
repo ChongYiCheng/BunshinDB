@@ -53,13 +53,19 @@ func (client *Client) HttpClientReq(msg *Message,targetUrl string,endpoint strin
         unreachableUrl := targetUrl
         for targetUrl == unreachableUrl{
             rand.Seed(time.Now().Unix())
-            targetUrl = client.KnownNodeURLs[rand.Intn(len(client.KnownNodeURLs))]
+            dstNodeidx := rand.Intn(len(client.KnownNodeURLs))
+            fmt.Printf("Client sending to Node %s\n",client.KnownNodeURLs[dstNodeidx])
+            targetUrl = client.KnownNodeURLs[dstNodeidx]
         }
-        go client.HttpClientReq(msg, targetUrl, endpoint)
+        //YC: I think no need to go routine this.
+        client.HttpClientReq(msg, targetUrl, endpoint)
+        // go client.HttpClientReq(msg, targetUrl, endpoint)
         return
+    }else{
+        defer res.Body.Close()
+        fmt.Println("HTTP Client Req - Got a response")
     }
-    defer res.Body.Close()
-    fmt.Println("HTTP Client Req - Got a response")
+
 
     // always close the response-body, even if content is not required
 
@@ -73,8 +79,8 @@ func (client *Client) HttpClientReq(msg *Message,targetUrl string,endpoint strin
         if endpoint == "get" && len(msgData) > 1{
             //TODO Need to add semantic reconciliation handling case
             //Conflicting shopping cart versions, need to perform semantic reconciliation
-            //and write back to coordinator
             client.SemanticReconciliation(resMsg)
+            //TODO: and write back to coordinator
         } else{
             for k,v := range resMsg.Data{
                 var shoppingCart ShoppingCart.ShoppingCart
@@ -115,7 +121,9 @@ func (client *Client) SemanticReconciliation(conflictedMessage Message){
     httpMsg.Data = data
     fmt.Printf("httpMsg %s\n",httpMsg)
     rand.Seed(time.Now().Unix())
-    targetUrl := client.KnownNodeURLs[rand.Intn(len(client.KnownNodeURLs))]
+    dstNodeidx := rand.Intn(len(client.KnownNodeURLs))
+    fmt.Printf("Client sending to Node %d\n",client.KnownNodeURLs[dstNodeidx])
+    targetUrl := client.KnownNodeURLs[dstNodeidx]
     client.HttpClientReq(httpMsg,targetUrl,"put")
 }
 
@@ -159,8 +167,10 @@ under the Coordinator Node
             key := arrCommandStr[1]
             httpMsg.Query = key
             fmt.Printf("httpMsg %s\n",httpMsg)
-			rand.Seed(time.Now().Unix())
-			targetUrl := client.KnownNodeURLs[rand.Intn(len(client.KnownNodeURLs))]
+            rand.Seed(time.Now().Unix())
+            dstNodeidx := rand.Intn(len(client.KnownNodeURLs))
+            fmt.Printf("Client sending to Node %s\n",client.KnownNodeURLs[dstNodeidx])
+			targetUrl := client.KnownNodeURLs[dstNodeidx]
             client.HttpClientReq(httpMsg,targetUrl,"get")
 
         case "put":
@@ -192,7 +202,10 @@ under the Coordinator Node
 			fmt.Printf("httpMsg %s\n",httpMsg)
             rand.Seed(time.Now().Unix())
             //rand.Intn(len(client.KnownNodeURLs)) - we remove this from the below arg for testing purpose
-			targetUrl := client.KnownNodeURLs[rand.Intn(len(client.KnownNodeURLs))]
+            dstNodeidx:= rand.Intn(len(client.KnownNodeURLs))
+            fmt.Printf("Client sending to Node %s\n",client.KnownNodeURLs[dstNodeidx])
+            //fixing as 4 to fix a bug
+            targetUrl := client.KnownNodeURLs[dstNodeidx]
 			client.HttpClientReq(httpMsg,targetUrl,"put")
         default:
 		cmd := exec.Command(arrCommandStr[0], arrCommandStr[1:]...)
@@ -217,8 +230,8 @@ func main(){
     port := os.Args[1]
     //Set constants here
     //TODO need to know at least some of the members of the ring somehow
-    //KnownNodeUrls := []string{fmt.Sprintf("%s:8080",currentIP),fmt.Sprintf("%s:8081",currentIP),fmt.Sprintf("%s:8082",currentIP),fmt.Sprintf("%s:8083",currentIP)}
-    KnownNodeUrls := []string{fmt.Sprintf("%s:8080",currentIP),fmt.Sprintf("%s:8081",currentIP),fmt.Sprintf("%s:8082",currentIP),fmt.Sprintf("%s:8083",currentIP),fmt.Sprintf("%s:8084",currentIP)}
+    KnownNodeUrls := []string{fmt.Sprintf("%s:8080",currentIP),fmt.Sprintf("%s:8081",currentIP),fmt.Sprintf("%s:8082",currentIP),fmt.Sprintf("%s:8083",currentIP)}
+    // KnownNodeUrls := []string{fmt.Sprintf("%s:8080",currentIP),fmt.Sprintf("%s:8081",currentIP),fmt.Sprintf("%s:8082",currentIP),fmt.Sprintf("%s:8083",currentIP),fmt.Sprintf("%s:8084",currentIP)}
     client := &Client{currentIP,port,KnownNodeUrls}
 	//Start of CLI interactivity
 	reader := bufio.NewReader(os.Stdin)

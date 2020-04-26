@@ -277,6 +277,7 @@ func (node *Node) GetHandler(w http.ResponseWriter, r *http.Request) {
         // responseMessage := <-rChannel
         // fmt.Println("Received Relayed Msg from Coordinator Node")
         // close(rChannel)
+        fmt.Printf("Response message from coordinator node: %v\n",responseMessage)
         json.NewEncoder(w).Encode(responseMessage)
     }
 }
@@ -330,12 +331,15 @@ func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
                 responseMessage := &Message{
                     SenderIP:node.IP,SenderPort:node.Port,Data:msgData,
                 }
+                fmt.Printf("ResponseStatus is %s\n",responseStatus)
                 if responseStatus == "400"{
                     http.Error(w, http.StatusText(http.StatusBadRequest),http.StatusBadRequest)
                 } else{
+                    fmt.Println("Replying response msg!")
                     json.NewEncoder(w).Encode(responseMessage)
                 }
             } else{
+                //TODO: fixing put handler bug - some issues here? cause it got stuck here
                 fmt.Println("Node is initiating W process")
                 fmt.Printf("This is because the msg was sent by %s:%s\n",msg.SenderIP,msg.SenderPort)
                 //This node has to take initiative to start the W process.
@@ -365,13 +369,12 @@ func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
                 otherReplicas := []ConHash.NodeData{}
                 //fmt.Printf("RingNodeDataArray: %v\n",ring.RingNodeDataArray)
                 fmt.Printf("RingNodeDataArray[dstNodeHash]: %v\n",ring.RingNodeDataArray[dstNodeHash])
-                fmt.Printf("NodePrefList: %v\n",ring.NodePrefList)
+                //fmt.Printf("NodePrefList: %v\n",ring.NodePrefList)
                 otherReplicas = append(otherReplicas,ring.RingNodeDataArray[dstNodeHash])
                 //otherReplicas = append(otherReplicas,ring.NodePrefList[dstNodeHash])
                 otherReplicas = append(otherReplicas,ring.NodePrefList[dstNodeHash]...)
                 var successfulReplications = 0
                 var repPointer = &successfulReplications
-
                 wChannel := make(chan Message)
                 //This sends to the other replica
                 fmt.Printf("Other Replicas : %v\n",otherReplicas)
@@ -395,26 +398,50 @@ func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
                             node.RunHintedHandOff(replicaNodeHash,key,[]byte(clientCartBytes))
                             //Save into HintedHandoff
                         }else{
-                            go func(rData ConHash.NodeData, replicationPointer *int) {
+                            fmt.Println("Proceed to send to replica")
+                            go func(rData ConHash.NodeData, rcvChannel chan Message) {
                                 replicaNodeDataUrl := fmt.Sprintf("%s:%s",rData.IP,rData.Port)
-                                node.HttpClientReq(writeMsg,replicaNodeDataUrl,"put",wChannel)
-                                <-wChannel
-                                *replicationPointer = *replicationPointer + 1
-                            }(replicaNodeData,repPointer)
+                                fmt.Printf("Sending replica to %s\n",replicaNodeDataUrl)
+                                node.HttpClientReq(writeMsg,replicaNodeDataUrl,"put",rcvChannel)
+                            }(replicaNodeData,wChannel)
+                            <-wChannel
+                            fmt.Println("Replication pointer +1")
+                            *repPointer = *repPointer + 1
+                            // *replicationPointer = *replicationPointer + 1
+                            // fmt.Printf("Replication pointer: %d\n",*replicationPointer)
+                            // go func(rData ConHash.NodeData, replicationPointer *int) {
+                            //     replicaNodeDataUrl := fmt.Sprintf("%s:%s",rData.IP,rData.Port)
+                            //     fmt.Printf("Sending replica to %s\n",replicaNodeDataUrl)
+                            //     node.HttpClientReq(writeMsg,replicaNodeDataUrl,"put",wChannel)
+                            //     <-wChannel
+                            //     fmt.Println("Replication pointer +1")
+                            //     *replicationPointer = *replicationPointer + 1
+                            //     fmt.Printf("Replication pointer: %d\n",*replicationPointer)
+                            // }(replicaNodeData,repPointer)
                         }
                     }else{
                         fmt.Println("Skip cause ownself")
                     }
                 }
                 //close(wChannel)
+                //sleep to let the go func resolve
+                // time.Sleep(time.Duration(5000)*time.Millisecond)
+                //TODO: Run as go func
+                fmt.Printf("Successful replications using repPointer: %d\n",successfulReplications)
                 if successfulReplications >= ring.RWFactor{
                     //Write is successful
+                    fmt.Println("Write is successful!")
+                    // responseMessage := &Message{
+                    //     SenderIP:node.IP,SenderPort:node.Port,Data:cartData,
+                    // }
                     responseMessage := &Message{
-                        SenderIP:node.IP,SenderPort:node.Port,Data:cartData,
+                        SenderIP:node.IP,SenderPort:node.Port,Data:msgData,
                     }
                     w.WriteHeader(http.StatusOK)
+                    //TODO: Fix the issue where responseMessage not sent to Client
                     json.NewEncoder(w).Encode(responseMessage)
                 } else{
+                    //TODO: for some reason, got no failure but this was triggered
                     //Return 501 code because Server failed to complete write (which means alot of failures in DB)
                     http.Error(w, http.StatusText(http.StatusNotImplemented), http.StatusNotImplemented)
                 }
@@ -424,6 +451,7 @@ func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
             //Need to relay put request to appropriate node
             //TODO In case appropriate node fails, check pref list and send to secondary
             relayResponseMsg := node.CheckStatusAndSend(dstNodeHash,msg,"put")
+            fmt.Printf("Put handler relayResponseMsg: %v\n",relayResponseMsg)
             json.NewEncoder(w).Encode(relayResponseMsg)
         }
     }
@@ -577,6 +605,8 @@ func (node *Node) HttpClientReq(msg *Message,targetUrl string,endpoint string, r
             //TODO: Remove comments for statement below(Removing for hintedhandoff testing)
             //fmt.Printf("Response Message is \n%v\n",resMsg)
             relayChannel <- resMsg
+        }else{
+            fmt.Printf("res.StatusCode is %d\n",res.StatusCode)
         }
     }
 }
@@ -584,6 +614,7 @@ func (node *Node) HttpClientReq(msg *Message,targetUrl string,endpoint string, r
 
 
 func (node *Node) UpdateDB(update map[string][]byte) error{
+    fmt.Println("Updating database")
     db := node.NodeDB
     txn := db.NewTransaction(true)
     for k,v := range update{
@@ -888,6 +919,7 @@ func (node *Node) CheckStatusAndSend(dstNodeHash int, msg *Message, endpoint str
     }else{
         node.HttpClientReq(msg,dstNodeURL,"put",rChannel)
         respondMessage := <-rChannel
+        fmt.Printf("Responde Message :%v\n",respondMessage)
         close(rChannel)
         return respondMessage
     }
