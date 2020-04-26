@@ -272,8 +272,41 @@ function purchaseClicked() {
 
 //TODO Make a function with AJAX to send JSON to client.go
 
+function updateCartDB() {
+//{
+// "ShopperID": "noblekid96",
+// "Items": {
+//  "Lakewood Guitar": {
+//   "Name": "Lakewood Guitar",
+//   "Description": "Expensive AAA guitar",
+//   "Quantity": 1,
+//   "Price": 3500
+//  }
+// },
+// "Version": {
+//  "Vector": {
+//   "A": 1,
+//   "B": 1
+//  }
+// }
+//}
+	console.log("Updating backend")
+    var cartItemContainer = document.getElementsByClassName('cart-items')[0]
+    var cartRows = cartItemContainer.getElementsByClassName('cart-row')
+    for (var i = 0; i < cartRows.length; i++) {
+        var cartRow = cartRows[i]
+        var priceElement = cartRow.getElementsByClassName('cart-price')[0]
+        var quantityElement = cartRow.getElementsByClassName('cart-quantity-input')[0]
+        var price = parseFloat(priceElement.innerText.replace('$', ''))
+        var quantity = quantityElement.value
+        console.log("Checking updateCartTotal")
+        console.log(price)
+        console.log(quantity)
+        total = total + (price * quantity)
+    }
 
 
+}
 //TODO Make a function with AJAX to receive JSON from client.go
 
 //Modal JS
