@@ -200,23 +200,33 @@ func (node *Node) GetHandler(w http.ResponseWriter, r *http.Request) {
             }
             for _,replicaNodeData := range otherReplicas{
                 if replicaNodeData.CName != node.CName{
-                    go func(rData ConHash.NodeData){
-                        replicaNodeDataUrl := fmt.Sprintf("%s:%s",rData.IP,rData.Port)
-                        fmt.Printf("Debugging replica url %s\n",replicaNodeDataUrl)
-                        node.HttpClientReq(rMessage,replicaNodeDataUrl,"get",rChannel)
-                        responseMessage := <-rChannel
-                        if len(shoppingCartVersions) < ring.RWFactor{
-                            //Convert bytes in data to shopping cart structure
-                            data := responseMessage.Data
-                            shoppingCartBytes := data[msg.Query]
-                            var shoppingCart ShoppingCart.ShoppingCart
-                            json.Unmarshal(shoppingCartBytes,&shoppingCart)
-                            //json.NewDecoder(shoppingCartBytes).Decode(&shoppingCart)
-                            shoppingCartVersions = append(shoppingCartVersions,shoppingCart)
-                        } else{
-                            // Do nothing :')
-                        }
-                    }(replicaNodeData)
+                    //Check if alive. If not alive, then dun need to ask node
+                    physicalNodeID := replicaNodeData.CName + "0"
+                    fmt.Printf("Status of physical Node: %t\n",node.Ring.NodeStatuses[physicalNodeID])
+                    // fmt.Printf("Replica Node Status: %t\n",node.Ring.NodeStatuses[replicaNodeData.ID])
+                    statusOfPhysicalNode := node.Ring.NodeStatuses[physicalNodeID]
+                    if statusOfPhysicalNode == false{
+                        fmt.Printf("Skipping node %v because it has fainted\n",replicaNodeData)
+                    }else{
+                        go func(rData ConHash.NodeData){
+                            replicaNodeDataUrl := fmt.Sprintf("%s:%s",rData.IP,rData.Port)
+                            fmt.Printf("Debugging replica url %s\n",replicaNodeDataUrl)
+                            node.HttpClientReq(rMessage,replicaNodeDataUrl,"get",rChannel)
+                            responseMessage := <-rChannel
+                            if len(shoppingCartVersions) < ring.RWFactor{
+                                //Convert bytes in data to shopping cart structure
+                                data := responseMessage.Data
+                                shoppingCartBytes := data[msg.Query]
+                                var shoppingCart ShoppingCart.ShoppingCart
+                                json.Unmarshal(shoppingCartBytes,&shoppingCart)
+                                //json.NewDecoder(shoppingCartBytes).Decode(&shoppingCart)
+                                shoppingCartVersions = append(shoppingCartVersions,shoppingCart)
+                            } else{
+                                // Do nothing :')
+                            }
+                        }(replicaNodeData)
+                    }
+
                 }
             }
             //close(rChannel)
