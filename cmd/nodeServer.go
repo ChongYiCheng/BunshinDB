@@ -413,7 +413,7 @@ func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
                 if successfulReplications >= ring.RWFactor{
                     fmt.Println("Write is successful!")
                     responseMessage := &Message{
-                        SenderIP:node.IP,SenderPort:node.Port,Data:msgData,
+                        SenderIP:node.IP,SenderPort:node.Port,Data:cartData,
                     }
                     fmt.Printf("response message after success replication: %v\n",*responseMessage)
                     w.WriteHeader(http.StatusOK)

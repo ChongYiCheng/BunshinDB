@@ -86,6 +86,7 @@ function ready() {
             console.log(user)
             user.innerHTML = stuff;
             console.log(stuff)
+            retrieveCartDB();
 			//self.toggleError(document.getElementById('signin-email'), true);
 		});
 		this.blocks[1].getElementsByTagName('form')[0].addEventListener('submit', function(event){
@@ -190,14 +191,16 @@ function addToCartClicked(event) {
     var shopItem = button.parentElement.parentElement
     var title = shopItem.getElementsByClassName('product__name')[0].innerText
     var price = shopItem.getElementsByClassName('product__price')[0].innerText
+    var description = shopItem.getElementsByClassName('product__description')[0].innerText
     var imageSrc = shopItem.getElementsByClassName('product__image')[0].src
 	console.log(title)
 	console.log(price)
-    addItemToCart(title, price, imageSrc)
+    addItemToCart(title, price, imageSrc, description)
     updateCartTotal()
+    updateCartDB()
 }
 
-function addItemToCart(title, price, imageSrc) {
+function addItemToCart(title, price, imageSrc, description, itemQty) {
     var cartRow = document.createElement('div')
     cartRow.classList.add('cart-row')
     var cartItems = document.getElementsByClassName('cart-items')[0]
@@ -208,14 +211,20 @@ function addItemToCart(title, price, imageSrc) {
             return
         }
     }
+    var value = 1
+    if (itemQty != undefined) {
+        console.log("Value is "+itemQty)
+        value = itemQty
+    }
     var cartRowContents = `
         <div class="cart-item cart-column">
             <img class="cart-item-image" src="${imageSrc}" width="100" height="100">
             <span class="cart-item-title">${title}</span>
         </div>
         <span class="cart-price cart-column">${price}</span>
+        <span style="display:none" class="cart-description">${description}</span>
         <div class="cart-quantity cart-column">
-            <input class="cart-quantity-input" type="number" value="1">
+            <input class="cart-quantity-input" type="number" value=${value}>
             <button class="btn btn-danger" type="button">REMOVE</button>
         </div>`
     cartRow.innerHTML = cartRowContents
@@ -251,6 +260,7 @@ function removeCartItem(event) {
     var buttonClicked = event.target
     buttonClicked.parentElement.parentElement.remove()
     updateCartTotal()
+    updateCartDB()
 }
 
 function quantityChanged(event) {
@@ -259,6 +269,7 @@ function quantityChanged(event) {
         input.value = 1
     }
     updateCartTotal()
+    updateCartDB()
 }
 
 function purchaseClicked() {
@@ -268,18 +279,120 @@ function purchaseClicked() {
         cartItems.removeChild(cartItems.firstChild)
     }
     updateCartTotal()
+    updateCartDB()
 }
 
 //TODO Make a function with AJAX to send JSON to client.go
 
+function updateCartDB() {
+	console.log("Updating backend")
+    var shoppingCartJson = {};
+    var Items = {};
+    shoppingCartJson["ShopperID"] = document.getElementById('Shop_User').innerText
+    console.log(shoppingCartJson)
 
+    var cartItemContainer = document.getElementsByClassName('cart-items')[0]
+    var cartRows = cartItemContainer.getElementsByClassName('cart-row')
+    for (var i = 0; i < cartRows.length; i++) {
+        var cartRow = cartRows[i]
+        var itemName = cartRow.getElementsByClassName('cart-item-title')[0].innerText
+        var priceElement = cartRow.getElementsByClassName('cart-price')[0]
+        var quantityElement = cartRow.getElementsByClassName('cart-quantity-input')[0]
+        var price = parseFloat(priceElement.innerText.replace('$', ''))
+        var quantity = quantityElement.value
+        var description = cartRow.getElementsByClassName('cart-description')[0].innerText
+        console.log("Checking updateCartTotal")
+        console.log(itemName)
+        console.log(price)
+        console.log(quantity)
+        console.log(description)
+        var item = {}
+        var itemDetails = {}
+        itemDetails["Name"] = itemName;
+        itemDetails["Description"] = description;
+        itemDetails["Quantity"] = parseInt(quantity);
+        itemDetails["Price"] = parseFloat(price);
+        Items[itemName] = itemDetails;
+        console.log(Items)
+    }
+    shoppingCartJson["Items"] = Items;
+    versionHTML = document.getElementById("version")
+    if (versionHTML.innerText.length != 0) {
+        VersionJSON = JSON.parse(versionHTML.innerText)
+        console.log("Version JSON is"+VersionJSON)
+        shoppingCartJson["Version"] = VersionJSON;
+    } else{
+        shoppingCartJson["Version"] = {"Vector":{}};
+    }
+    shoppingCartJsonString = JSON.stringify(shoppingCartJson);
+    var xhr = new XMLHttpRequest();
 
+	xhr.onreadystatechange = function() {
+	  if (this.readyState == 4 && this.status == 200) {
+          console.log(this.responseText);	
+          var shoppingCart = JSON.parse(JSON.parse(this.responseText));
+          var shoppingCartVersion = shoppingCart["Version"]
+          console.log(shoppingCartVersion)
+          var versionHTML = document.getElementById("version")
+          versionHTML.innerText = JSON.stringify(shoppingCartVersion)
+	  }
+	};
+
+    xhr.open("POST","http://localhost:9000/put");
+    xhr.setRequestHeader("Content-Type", "application/json");
+    xhr.send(shoppingCartJsonString);
+
+    
+    console.log(shoppingCartJsonString)
+}
 //TODO Make a function with AJAX to receive JSON from client.go
+function retrieveCartDB() {
+	console.log("Querying backend")
+    shopperID = document.getElementById('Shop_User').innerText
+    var xhr = new XMLHttpRequest();
 
-//Modal JS
-//
-//
+	xhr.onreadystatechange = function() {
+	  if (this.readyState == 4 && this.status == 200) {
+          //console.log(this.responseText);	
+          var shoppingCart = JSON.parse(JSON.parse(this.responseText));
+          //console.log(shoppingCart)
+          //console.log(shoppingCart)
+          var items = shoppingCart["Items"];
+          var nameToImg = retrieveImgSrc()
+          console.log(items)
+          for (var item in items) {
+              if (items.hasOwnProperty(item)) {
+                  //console.log(item)
+                  var itemName = items[item]["Name"]
+                  var itemDesc = items[item]["Description"]
+                  var itemPrice = items[item]["Price"]
+                  var itemQty = items[item]["Quantity"]
+                  //Need to retrieve image source
+                  console.log(nameToImg[itemName])
+                  addItemToCart(itemName,itemPrice,nameToImg[itemName],itemDesc,itemQty)
+              }
+          }
+          updateCartTotal()
+          var shoppingCartVersion = shoppingCart["Version"]
+          console.log(shoppingCartVersion)
+          var versionHTML = document.getElementById("version")
+          versionHTML.innerText = JSON.stringify(shoppingCartVersion)
+          
+	  }
+	};
 
-//(function(){
-//    //Login/Signup modal window - by CodyHouse.co
-//})();
+    xhr.open("POST","http://localhost:9000/get?ID="+shopperID);
+    xhr.send();
+}
+
+function retrieveImgSrc() {
+    var productImages = document.getElementsByClassName('product__image')
+    var nameToImg = {}
+    for (var i = 0; i < productImages.length; i++) {
+        var productImgSrc = productImages[i].src
+        var product = productImages[i].parentElement
+        var productName = product.getElementsByClassName('product__name')[0].innerText
+        nameToImg[productName] = productImgSrc
+    }
+    return nameToImg
+}

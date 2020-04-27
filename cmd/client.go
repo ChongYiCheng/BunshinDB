@@ -16,7 +16,7 @@ import (
 	//"./pkg/VectorClock"
 	//"./pkg/Item"
 	"io/ioutil"
-	//"time"
+	"log"
 
 )
 
@@ -33,7 +33,120 @@ type Client struct{
     KnownNodeURLs []string
 }
 
-func (client *Client) HttpClientReq(msg *Message,targetUrl string,endpoint string){
+func (client *Client) HttpServerStart(){
+
+    http.HandleFunc("/get", client.GetHandler)
+    http.HandleFunc("/put", client.PutHandler)
+    log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s",client.Port), nil))
+}
+
+func (client *Client) GetHandler(w http.ResponseWriter, r *http.Request){
+    //var msg *Message
+    fmt.Println("Client Get Handler activated")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+    w.Header().Set("Access-Control-Allow-Headers", "*")
+
+	if r.Method == "OPTIONS" {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	ID, ok := r.URL.Query()["ID"]
+
+    if !ok || len(ID[0]) < 1 {
+        log.Println("ID Param 'key' is missing")
+        return
+    }
+
+	shopperID := ID[0]
+    fmt.Printf("ShopperID is %s\n",shopperID)
+    fmt.Println("Querying BunshinDB ...")
+
+    httpMsg := &Message{}
+    httpMsg.SenderIP = client.IP
+    httpMsg.SenderPort = client.Port
+    httpMsg.Query = shopperID
+    fmt.Printf("httpMsg %s\n",httpMsg)
+
+	rand.Seed(time.Now().Unix())
+	targetUrl := client.KnownNodeURLs[rand.Intn(len(client.KnownNodeURLs))]
+    msgData, err := client.HttpClientReq(httpMsg,targetUrl,"get")
+    if err != nil{
+        fmt.Println(err)
+        http.Error(w, "Failed to retrieve items", 500)
+    }
+
+    w.Header().Set("Content-Type","application/json")
+    json.NewEncoder(w).Encode(string(msgData[shopperID]))
+
+}
+
+func (client *Client) PutHandler(w http.ResponseWriter, r *http.Request){
+    //var msg *Message
+    fmt.Println("Client Put Handler activated")
+	//enableCors(&w)
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+    w.Header().Set("Access-Control-Allow-Headers", "*")
+
+	if r.Method == "OPTIONS" {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+    if r.Body == nil {
+        http.Error(w, "Please send a request body", 400)
+        return
+    }
+
+	//ID, ok := r.URL.Query()["ID"]
+    var shoppingCart ShoppingCart.ShoppingCart
+
+    // Try to decode the request body into the struct. If there is an error,
+    // respond to the client with the error message and a 400 status code
+	fmt.Println(r.Body)
+    err := json.NewDecoder(r.Body).Decode(&shoppingCart)
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusBadRequest)
+        return
+    }
+    shoppingCartJson, marshalErr := json.Marshal(shoppingCart)
+    if marshalErr != nil{
+        fmt.Errorf("Failed to marshal shoppingCart")
+    }
+    //shoppingCartBytes = []byte(shoppingCartJson)
+    clientData := map[string][]byte{shoppingCart.ShopperID:shoppingCartJson}
+
+
+    httpMsg := &Message{}
+    httpMsg.SenderIP = client.IP
+    httpMsg.SenderPort = client.Port
+    httpMsg.Data = clientData
+    fmt.Printf("httpMsg %s\n",httpMsg)
+
+	rand.Seed(time.Now().Unix())
+	targetUrl := client.KnownNodeURLs[rand.Intn(len(client.KnownNodeURLs))]
+    msgData, err := client.HttpClientReq(httpMsg,targetUrl,"put")
+    if err != nil{
+        http.Error(w, "Failed to put items", 500)
+    }
+
+    //w.Header().Set("Content-Type","application/json")
+    json.NewEncoder(w).Encode(string(msgData[shoppingCart.ShopperID]))
+}
+
+func enableCors(w *http.ResponseWriter) {
+	(*w).Header().Set("Access-Control-Allow-Origin", "*")
+
+}
+
+func setupResponse(w *http.ResponseWriter, req *http.Request) {
+	(*w).Header().Set("Access-Control-Allow-Origin", "*")
+    (*w).Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
+    (*w).Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
+}
+
+func (client *Client) HttpClientReq(msg *Message,targetUrl string,endpoint string) (map[string][]byte,error){
 	httpClient := &http.Client{
 	}
     fmt.Println("HTTP Client Req function called")
@@ -57,10 +170,8 @@ func (client *Client) HttpClientReq(msg *Message,targetUrl string,endpoint strin
             fmt.Printf("Client sending to Node %s\n",client.KnownNodeURLs[dstNodeidx])
             targetUrl = client.KnownNodeURLs[dstNodeidx]
         }
-        //YC: I think no need to go routine this.
-        client.HttpClientReq(msg, targetUrl, endpoint)
-        // go client.HttpClientReq(msg, targetUrl, endpoint)
-        return
+        go client.HttpClientReq(msg, targetUrl, endpoint)
+        return map[string][]byte{}, err
     }
     defer res.Body.Close()
     fmt.Println("HTTP Client Req - Got a response")
@@ -69,32 +180,32 @@ func (client *Client) HttpClientReq(msg *Message,targetUrl string,endpoint strin
 
     // always close the response-body, even if content is not required
 
-    if err != nil {
-         fmt.Println("Unable to reach the server.")
+    var resMsg Message
+    json.NewDecoder(res.Body).Decode(&resMsg)
+    fmt.Printf("Response Message is \n%v\n",resMsg)
+    msgData := map[string]ShoppingCart.ShoppingCart{}
+    if endpoint == "get" && len(msgData) > 1{
+        //TODO Need to add semantic reconciliation handling case
+        //Conflicting shopping cart versions, need to perform semantic reconciliation
+        //and write back to coordinator
+        reconciledData := client.SemanticReconciliation(resMsg)
+        return reconciledData, nil
     } else{
-        var resMsg Message
-		json.NewDecoder(res.Body).Decode(&resMsg)
-        fmt.Printf("Response Message is \n%v\n",resMsg)
-        msgData := map[string]ShoppingCart.ShoppingCart{}
-        if endpoint == "get" && len(msgData) > 1{
-            //TODO Need to add semantic reconciliation handling case
-            //Conflicting shopping cart versions, need to perform semantic reconciliation
-            client.SemanticReconciliation(resMsg)
-        } else{
-            for k,v := range resMsg.Data{
-                var shoppingCart ShoppingCart.ShoppingCart
-                unMarshalErr := json.Unmarshal(v,&shoppingCart)
-                if unMarshalErr != nil{
-                    fmt.Errorf("Failed to unmarshal message data")
-                }
-                msgData[k] = shoppingCart
-            }
-            fmt.Printf("Data of the message is \n%v\n",msgData)
-        }
+        msgData := resMsg.Data
+        //for k,v := range resMsg.Data{
+        //    var shoppingCart ShoppingCart.ShoppingCart
+        //    unMarshalErr := json.Unmarshal(v,&shoppingCart)
+        //    if unMarshalErr != nil{
+        //        fmt.Errorf("Failed to unmarshal message data")
+        //    }
+        //    msgData[k] = shoppingCart
+        //}
+        fmt.Printf("Data of the message is \n%v\n",msgData)
+        return msgData, nil
     }
 }
 
-func (client *Client) SemanticReconciliation(conflictedMessage Message){
+func (client *Client) SemanticReconciliation(conflictedMessage Message) (map[string][]byte){
     //Need to collate list of conflicted shopping carts then merge them
     fmt.Println("Client running Semantic Reconciliation")
     listOfConflictingCarts := []ShoppingCart.ShoppingCart{}
@@ -121,10 +232,12 @@ func (client *Client) SemanticReconciliation(conflictedMessage Message){
     httpMsg.Data = data
     fmt.Printf("httpMsg %s\n",httpMsg)
     rand.Seed(time.Now().Unix())
-    dstNodeidx := rand.Intn(len(client.KnownNodeURLs))
-    fmt.Printf("Client sending to Node %d\n",client.KnownNodeURLs[dstNodeidx])
-    targetUrl := client.KnownNodeURLs[dstNodeidx]
-    client.HttpClientReq(httpMsg,targetUrl,"put")
+    targetUrl := client.KnownNodeURLs[rand.Intn(len(client.KnownNodeURLs))]
+    msgData,err := client.HttpClientReq(httpMsg,targetUrl,"put")
+    if err!=nil{
+        fmt.Errorf("Failed to put data")
+    }
+    return msgData
 }
 
 func (client *Client) runCommand(commandStr string) error {
@@ -233,6 +346,7 @@ func main(){
     KnownNodeUrls := []string{fmt.Sprintf("%s:8080",currentIP),fmt.Sprintf("%s:8081",currentIP),fmt.Sprintf("%s:8082",currentIP),fmt.Sprintf("%s:8083",currentIP)}
     // KnownNodeUrls := []string{fmt.Sprintf("%s:8080",currentIP),fmt.Sprintf("%s:8081",currentIP),fmt.Sprintf("%s:8082",currentIP),fmt.Sprintf("%s:8083",currentIP),fmt.Sprintf("%s:8084",currentIP)}
     client := &Client{currentIP,port,KnownNodeUrls}
+    go client.HttpServerStart()
 	//Start of CLI interactivity
 	reader := bufio.NewReader(os.Stdin)
     fmt.Printf("Client@%s:%s$ ",client.IP,client.Port)

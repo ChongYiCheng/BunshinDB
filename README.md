@@ -14,6 +14,16 @@ go run cmd/client.go <portNumber>
 Note: The last argument, `shouldRegister` is either `"true"` or `"false"`. 
 Set it to false if we want to simulate a revival of the node.  
 
+### Dependencies 
+github.com/golang/glog
+github.com/dgraph-io/badger/
+
+### Setting up 
+```cassandraql
+go get github.com/golang/glog
+go get github.com/dgraph-io/badger/
+```
+
 #### Example Usage: 
 To run a nodeServer
 ```cassandraq#
