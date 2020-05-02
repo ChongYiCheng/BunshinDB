@@ -184,6 +184,7 @@ func (ring *Ring) AllocateKey(key string) (int,string,error){
     var NodeNotFound = errors.New("Node not found")
 
     nodeArray := ring.RingNodeDataArray
+    fmt.Println("[DEBUG] Length of node array is: ",nodeArray)
     keyHash := HashMD5(key,0,len(nodeArray)-1)
     var firstNodeAddress int //Keep a pointer to the first node address encountered just in case
     firstNodeAddress = -1 // -1 is an impossible number in context of node array, 
@@ -209,7 +210,6 @@ func (ring *Ring) AllocateKey(key string) (int,string,error){
 
 func (ring *Ring) GenPrefList(){
     nodeArray := ring.RingNodeDataArray
-    fmt.Println("Hello!")
     for i := 0 ; i < len(nodeArray) ; i++ {
         if nodeArray[i].ID != ""{
             // if node not empty, assign preference list
