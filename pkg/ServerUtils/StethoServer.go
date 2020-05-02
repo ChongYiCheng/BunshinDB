@@ -40,7 +40,7 @@ type StethoNode struct {
 	port                string
 	pingIntervalSeconds int //How long the stethoscope should wait after each cycle?
 
-	// {nodeID: numberOfTimesItHasFailed }
+	
 	nodeStatuses map[string]int
 	failThreshold int
 }
@@ -65,7 +65,6 @@ func (s *StethoNode) addNode(nodeID string, nodeAddr string){
 }
 
 func (s *StethoNode) SetRing(ringAddr string){
-	//s.ringServer = r
 	s.ringAddr = ringAddr
 }
 

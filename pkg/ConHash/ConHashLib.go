@@ -13,15 +13,12 @@ type Node struct{
 	ID string
 	CName string
 	NumTokens int
-	//quitChannel chan struct{}
-	//nodeChannel chan interface{}
 	DBPath string // e.g /tmp/badger
 	NodeDB *badger.DB
-	HHQueue *badger.DB // added by yc to test hintedhandoff
+	HHQueue *badger.DB 
 	IP string //a.b.c.d:port
 	Port string
-	//allNodes map[int]string
-	//localClock []int
+
 
 	NodeRingPositions []int
 	Ring *Ring
@@ -97,8 +94,7 @@ func NewRing(maxID int, replicationFactor int, rwFactor int) *Ring{
 //node will create numTokens worth of virtual nodes
 func (n *Node) RegisterWithRing(r *Ring) {
 	nodeDataArray := []NodeData {}
-	//copy(tempNodeDataArray,localRing.ringNodeDataArray)
-	//TODO: Can we do deduplication on the node side?
+
 	for i := 0; i < n.NumTokens +1; i ++ {
 		id := fmt.Sprintf("%s%d", n.CName, i)
 		hash := HashMD5(id, 0, r.MaxID)
@@ -136,10 +132,7 @@ func (r *Ring) RegisterNodes(nodeDataArray []NodeData) []NodeData{
 	return ret
 }
 
-//func toString() string {
-//
-//}
-//Easy toString method
+
 func ToString(nodeDataArray []NodeData) []string{
 	ret := []string {}
 	for _, nd := range nodeDataArray {
@@ -155,10 +148,10 @@ func (r *Ring) GetNode(id string) (string, error) {
 
 	//Impose an upper bound for probe times
 	for i:= 0; i < len(r.RingNodeDataArray); i ++{
-		//fmt.Println(r.RingNodeDataArray[hash].ID)
+		
 		if r.RingNodeDataArray[hash].ID == id {
 			ip_port := fmt.Sprintf("%s:%s",r.RingNodeDataArray[hash].IP,r.RingNodeDataArray[hash].Port)
-			//return r.nodeArray[hash].physicalNode, nil
+			
 			return ip_port, nil
 		}
 		hash = (hash + 1) % len(r.RingNodeDataArray)
@@ -233,5 +226,3 @@ func (ring *Ring) GenPrefList(){
         }
     }
 }
-
-

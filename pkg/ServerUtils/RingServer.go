@@ -93,7 +93,7 @@ func (ringServer *RingServer) FaintNodeHandler(w http.ResponseWriter, r *http.Re
 	if err != nil {
 		log.Fatalln(err)
 	}
-	// payload = {"nodeId": "A1"}
+	
 	var payload map[string]string
 	err = json.Unmarshal(body, &payload)
 
@@ -110,13 +110,13 @@ func (ringServer *RingServer) FaintNodeHandler(w http.ResponseWriter, r *http.Re
 
 
 func (ringServer *RingServer) RemoveNodeHandler(w http.ResponseWriter, r *http.Request) {
-	//TODO: Merkle tree stuff
+	
 	log.Print("[RingServer] Received Remove Node From StethoServer...")
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		log.Fatalln(err)
 	}
-	// payload = {"nodeId": "A1"}
+	
 	var payload map[string]string
 	err = json.Unmarshal(body, &payload)
 
@@ -132,13 +132,13 @@ func (ringServer *RingServer) RemoveNodeHandler(w http.ResponseWriter, r *http.R
 }
 
 func (ringServer *RingServer) ReviveNodeHandler(w http.ResponseWriter, r *http.Request) {
-	//TODO: Hinted Handoff stuff
+	
 	log.Print("[RingServer] Received Revive Node From StethoServer...")
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		log.Fatalln(err)
 	}
-	// payload = {"nodeId": "A1"}
+	
 	var payload map[string]string
 	err = json.Unmarshal(body, &payload)
 
@@ -204,10 +204,6 @@ func (ringServer RingServer) GetRingHandler(w http.ResponseWriter, r *http.Reque
 
 	_, err = w.Write(body)
 
-}
-
-func (ringServer RingServer) GetNodeHandler(w http.ResponseWriter, r *http.Request) {
-	//TODO: Implement this for stronger consistency gurantees - but is anybody even calling it
 }
 
 //TODO: Refactor this part
