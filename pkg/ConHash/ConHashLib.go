@@ -235,24 +235,3 @@ func (ring *Ring) GenPrefList(){
 }
 
 
-
-//func (node *Node) findRanges(){
-//	//subRanges = {"A0": [[5,3],[3,1]]}
-//	subRanges := map[string][][]int{}
-//	//track the last n positions where a node exists
-//	positionTracker := make([]int, node.NumTokens)
-//	for i, nodeData := range node.Ring.RingNodeDataArray {
-//		if nodeData.ID != nil {
-//			positionTracker = append(positionTracker, i)
-//		}
-//		if nodeData.CName == node.CName {
-//
-//		}
-//	}
-//}
-////for each key value pair, decide which range they belong to
-////create a list for each range
-////build a MerkelTree for each range's list
-//func (node *Node) BuildMerkelTrees() {
-//
-//}

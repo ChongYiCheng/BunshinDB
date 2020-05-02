@@ -524,6 +524,7 @@ func (node *Node) ScanDB(){
             fmt.Printf("[Node %s] ScanDB() completes transfer \n",node.CName)
             //Check if this node is still inside the preference list, if not mark this key-value pair for removal from database
             if ( InPrefList(node.Ring.NodePrefList[dstNodeHash],node.IP,node.Port) == false){
+                fmt.Printf("[Node %s] Removing key %s from database\n",node.CName,key)
                 markedForRemoval = append(markedForRemoval,key)
             }
         }
