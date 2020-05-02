@@ -1076,7 +1076,6 @@ func main(){
         if unmarshalErr != nil{
             fmt.Errorf("Failed to unmarshal content from json file into ring")
         }
-        fmt.Println(oldRing)
         node.Ring = &oldRing
     }
 
