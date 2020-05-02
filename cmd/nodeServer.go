@@ -224,7 +224,6 @@ func (node *Node) GetHandler(w http.ResponseWriter, r *http.Request) {
 
                 }
             }
-
             //Reconcile differences between the shopping carts received by doing syntactic reconciliation
             listOfConflictingShoppingCarts := ShoppingCart.CompareShoppingCarts(shoppingCartVersions)
             //If reconciliation is successful and only a single cart is left
@@ -374,13 +373,6 @@ func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
                             replicaNodeHash := replicaNodeData.Hash
                             //Save replicaNodeHash,key value as hinted handoff in this node
                             node.RunHintedHandOff(replicaNodeHash,key,[]byte(clientCartBytes))
-                            //Respond with OK because already kept as hinted handoff
-                            //responseMessage := &Message{
-                            //    SenderIP:node.IP,SenderPort:node.Port,Data:msgData,
-                            //}
-                            //w.WriteHeader(http.StatusOK)
-                            //json.NewEncoder(w).Encode(responseMessage)
-                            //return
                         }else{
                             //If destination node's physical node is alive, send to it
                             fmt.Println("Proceed to send to replica")
@@ -389,14 +381,11 @@ func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
                                 fmt.Printf("Sending replica to %s\n",replicaNodeDataUrl)
                                 node.HttpClientReq(writeMsg,replicaNodeDataUrl,"put",rcvChannel)
                             }(replicaNodeData,wChannel)
-                            //<-wChannel
-                            //fmt.Println("Replication pointer +1")
                         }
                     }else{
                         //Do not request from itself
                     }
                 }
-                //fmt.Printf("Successful replications using repPointer: %d\n",successfulReplications)
                 for{
                     select{
                     case <-wChannel:
