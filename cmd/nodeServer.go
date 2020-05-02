@@ -19,6 +19,7 @@ import (
     "strconv"
     "strings"
     "time"
+    "reflect"
 )
 
 
@@ -429,6 +430,12 @@ func (node *Node) NewRingHandler(w http.ResponseWriter, r *http.Request) {
     if err != nil {
         log.Fatalln(err)
     }
+    //Track number of unique nodes in the previous ring
+    uniqueNodes := map[string]struct{}{}
+    for k,_ := range node.Ring.NodeStatuses{
+        uniqueNodes[k] = struct{}{}
+    }
+
 
     var ring ConHash.Ring
     err = json.Unmarshal(body, &ring)
@@ -456,7 +463,15 @@ func (node *Node) NewRingHandler(w http.ResponseWriter, r *http.Request) {
 
     //Check Hinted Handoff against new ring and send hinted hand off if node for hinted handoff is alive
     node.CheckHintedHandOff()
-    node.ScanDB()
+    //Compare unique nodes in new ring to the previous ring.
+    //If unique nodes are different, reallocate keys
+    newUniqueNodes := map[string]struct{}{}
+    for k,_ := range node.Ring.NodeStatuses{
+        newUniqueNodes[k] = struct{}{}
+    }
+    if reflect.DeepEqual(uniqueNodes,newUniqueNodes) == false{
+        node.ScanDB()
+    }
     fmt.Printf("Updated Node Positions: %v\n",node.NodeRingPositions)
 
 }

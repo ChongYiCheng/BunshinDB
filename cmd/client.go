@@ -64,7 +64,7 @@ func (client *Client) GetHandler(w http.ResponseWriter, r *http.Request){
     httpMsg.SenderIP = client.IP
     httpMsg.SenderPort = client.Port
     httpMsg.Query = shopperID
-    fmt.Printf("httpMsg %s\n",httpMsg)
+    //fmt.Printf("httpMsg %s\n",httpMsg)
 
 	rand.Seed(time.Now().Unix())
 	targetUrl := client.KnownNodeURLs[rand.Intn(len(client.KnownNodeURLs))]
@@ -120,7 +120,7 @@ func (client *Client) PutHandler(w http.ResponseWriter, r *http.Request){
     httpMsg.SenderIP = client.IP
     httpMsg.SenderPort = client.Port
     httpMsg.Data = clientData
-    fmt.Printf("httpMsg %s\n",httpMsg)
+    //fmt.Printf("httpMsg %s\n",httpMsg)
 
 	rand.Seed(time.Now().Unix())
 	targetUrl := client.KnownNodeURLs[rand.Intn(len(client.KnownNodeURLs))]
@@ -144,6 +144,15 @@ func setupResponse(w *http.ResponseWriter, req *http.Request) {
     (*w).Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
 }
 
+func contains(arr []string, str string) bool {
+   for _, a := range arr {
+      if a == str {
+         return true
+      }
+   }
+   return false
+}
+
 func (client *Client) HttpClientReq(msg *Message,targetUrl string,endpoint string) (map[string][]byte,error){
 	httpClient := &http.Client{
 	}
@@ -161,8 +170,9 @@ func (client *Client) HttpClientReq(msg *Message,targetUrl string,endpoint strin
     res, err := httpClient.Do(req)
     if err != nil{
         fmt.Printf("Cannot reach server at %v\n",url)
-        unreachableUrl := targetUrl
-        for targetUrl == unreachableUrl{
+        unreachableUrls := []string{}
+        unreachableUrls = append(unreachableUrls,targetUrl)
+        for contains(unreachableUrls,targetUrl){
             rand.Seed(time.Now().UTC().Unix())
             dstNodeidx := rand.Intn(len(client.KnownNodeURLs))
             fmt.Printf("Client sending to Node %s\n",client.KnownNodeURLs[dstNodeidx])
@@ -173,14 +183,12 @@ func (client *Client) HttpClientReq(msg *Message,targetUrl string,endpoint strin
     }
     defer res.Body.Close()
     fmt.Println("HTTP Client Req - Got a response")
-    
 
 
     // always close the response-body, even if content is not required
 
     var resMsg Message
     json.NewDecoder(res.Body).Decode(&resMsg)
-    fmt.Printf("Response Message is \n%v\n",resMsg)
     msgData := map[string]ShoppingCart.ShoppingCart{}
     if endpoint == "get" && len(msgData) > 1{
         //There are conflicting shopping cart versions, client to perform semantic reconciliation and write back to coordinator
@@ -188,15 +196,12 @@ func (client *Client) HttpClientReq(msg *Message,targetUrl string,endpoint strin
         return reconciledData, nil
     } else{
         msgData := resMsg.Data
-        for k,v := range resMsg.Data{
+        for _,v := range resMsg.Data{
             var shoppingCart ShoppingCart.ShoppingCart
             unMarshalErr := json.Unmarshal(v,&shoppingCart)
             if unMarshalErr != nil{
                 fmt.Errorf("Failed to unmarshal message data")
             }
-            
-            fmt.Printf("User %s's Shopping cart retrieved:  %v\n",k,shoppingCart)
-            
         }
 
         return msgData, nil
