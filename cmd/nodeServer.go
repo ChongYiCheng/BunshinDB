@@ -508,7 +508,8 @@ func (node *Node) ScanDB(){
                 //Check status of the dst node's physical node. If down, look for next best option 
                 node.CheckStatusAndSend(dstNodeHash,msgChnl,msgToSend,"put")
             }(dstNodeHash,rChannel,writeMsg)
-            responseMessage := <-rChannel
+            //responseMessage := <-rChannel
+            <-rChannel
             fmt.Printf("[Node %s] ScanDB() completes transfer \n",node.CName)
             //Check if this node is still inside the preference list, if not mark this key-value pair for removal from database
             if ( InPrefList(node.Ring.NodePrefList[dstNodeHash],node.IP,node.Port) == false){
@@ -573,7 +574,7 @@ func (node *Node) HttpClientReq(msg *Message,targetUrl string,endpoint string, r
 	}
     //fmt.Println("HTTP Client Req function called")
     url := fmt.Sprintf("http://%s/%s",targetUrl,endpoint)
-    fmt.Printf("[Node %s] Sending HTTP Req to url is %s\n",node.CName,url)
+    fmt.Printf("[Node %s] Sending HTTP Req to url: %s\n",node.CName,url)
     jsonBuffer, err := json.Marshal(msg)
     handle(err)
 
@@ -1066,6 +1067,7 @@ func main(){
         if unmarshalErr != nil{
             fmt.Errorf("Failed to unmarshal content from json file into ring")
         }
+        fmt.Println(oldRing)
         node.Ring = &oldRing
     }
 
