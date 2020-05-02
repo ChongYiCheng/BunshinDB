@@ -13,8 +13,6 @@ import (
 	"os/exec"
 	"strings"
 	"time"
-	//"./pkg/VectorClock"
-	//"./pkg/Item"
 	"io/ioutil"
 	"log"
 
@@ -41,7 +39,7 @@ func (client *Client) HttpServerStart(){
 }
 
 func (client *Client) GetHandler(w http.ResponseWriter, r *http.Request){
-    //var msg *Message
+
     fmt.Println("Client Get Handler activated")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
@@ -82,9 +80,9 @@ func (client *Client) GetHandler(w http.ResponseWriter, r *http.Request){
 }
 
 func (client *Client) PutHandler(w http.ResponseWriter, r *http.Request){
-    //var msg *Message
+
     fmt.Println("Client Put Handler activated")
-	//enableCors(&w)
+
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
     w.Header().Set("Access-Control-Allow-Headers", "*")
@@ -99,7 +97,7 @@ func (client *Client) PutHandler(w http.ResponseWriter, r *http.Request){
         return
     }
 
-	//ID, ok := r.URL.Query()["ID"]
+
     var shoppingCart ShoppingCart.ShoppingCart
 
     // Try to decode the request body into the struct. If there is an error,
@@ -114,7 +112,7 @@ func (client *Client) PutHandler(w http.ResponseWriter, r *http.Request){
     if marshalErr != nil{
         fmt.Errorf("Failed to marshal shoppingCart")
     }
-    //shoppingCartBytes = []byte(shoppingCartJson)
+
     clientData := map[string][]byte{shoppingCart.ShopperID:shoppingCartJson}
 
 
@@ -131,7 +129,7 @@ func (client *Client) PutHandler(w http.ResponseWriter, r *http.Request){
         http.Error(w, "Failed to put items", 500)
     }
 
-    //w.Header().Set("Content-Type","application/json")
+
     json.NewEncoder(w).Encode(string(msgData[shoppingCart.ShopperID]))
 }
 
@@ -185,9 +183,7 @@ func (client *Client) HttpClientReq(msg *Message,targetUrl string,endpoint strin
     fmt.Printf("Response Message is \n%v\n",resMsg)
     msgData := map[string]ShoppingCart.ShoppingCart{}
     if endpoint == "get" && len(msgData) > 1{
-        //TODO Need to add semantic reconciliation handling case
-        //Conflicting shopping cart versions, need to perform semantic reconciliation
-        //and write back to coordinator
+        //There are conflicting shopping cart versions, client to perform semantic reconciliation and write back to coordinator
         reconciledData := client.SemanticReconciliation(resMsg)
         return reconciledData, nil
     } else{
@@ -202,7 +198,7 @@ func (client *Client) HttpClientReq(msg *Message,targetUrl string,endpoint strin
             fmt.Printf("User %s's Shopping cart retrieved:  %v\n",k,shoppingCart)
             
         }
-        // fmt.Printf("Data of the message is \n%v\n",msgData)
+
         return msgData, nil
     }
 }
@@ -316,10 +312,8 @@ under the Coordinator Node
 			httpMsg.Data = data
 			fmt.Printf("httpMsg %s\n",httpMsg)
             rand.Seed(time.Now().Unix())
-            //rand.Intn(len(client.KnownNodeURLs)) - we remove this from the below arg for testing purpose
             dstNodeidx:= rand.Intn(len(client.KnownNodeURLs))
             fmt.Printf("Client sending to Node %s\n",client.KnownNodeURLs[dstNodeidx])
-            //fixing as 4 to fix a bug
             targetUrl := client.KnownNodeURLs[dstNodeidx]
 			client.HttpClientReq(httpMsg,targetUrl,"put")
         default:
@@ -343,10 +337,8 @@ func main(){
         fmt.Errorf("Failed to obtain IP address")
     }
     port := os.Args[1]
-    //Set constants here
-    //TODO need to know at least some of the members of the ring somehow
+
     KnownNodeUrls := []string{fmt.Sprintf("%s:8080",currentIP),fmt.Sprintf("%s:8081",currentIP),fmt.Sprintf("%s:8082",currentIP),fmt.Sprintf("%s:8083",currentIP)}
-    // KnownNodeUrls := []string{fmt.Sprintf("%s:8080",currentIP),fmt.Sprintf("%s:8081",currentIP),fmt.Sprintf("%s:8082",currentIP),fmt.Sprintf("%s:8083",currentIP),fmt.Sprintf("%s:8084",currentIP)}
     client := &Client{currentIP,port,KnownNodeUrls}
     go client.HttpServerStart()
 	//Start of CLI interactivity
