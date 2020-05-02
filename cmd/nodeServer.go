@@ -375,12 +375,12 @@ func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
                             //Save replicaNodeHash,key value as hinted handoff in this node
                             node.RunHintedHandOff(replicaNodeHash,key,[]byte(clientCartBytes))
                             //Respond with OK because already kept as hinted handoff
-                            responseMessage := &Message{
-                                SenderIP:node.IP,SenderPort:node.Port,Data:msgData,
-                            }
-                            w.WriteHeader(http.StatusOK)
-                            json.NewEncoder(w).Encode(responseMessage)
-                            return
+                            //responseMessage := &Message{
+                            //    SenderIP:node.IP,SenderPort:node.Port,Data:msgData,
+                            //}
+                            //w.WriteHeader(http.StatusOK)
+                            //json.NewEncoder(w).Encode(responseMessage)
+                            //return
                         }else{
                             //If destination node's physical node is alive, send to it
                             fmt.Println("Proceed to send to replica")
@@ -389,26 +389,33 @@ func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
                                 fmt.Printf("Sending replica to %s\n",replicaNodeDataUrl)
                                 node.HttpClientReq(writeMsg,replicaNodeDataUrl,"put",rcvChannel)
                             }(replicaNodeData,wChannel)
-                            <-wChannel
+                            //<-wChannel
                             //fmt.Println("Replication pointer +1")
-                            *repPointer = *repPointer + 1
                         }
                     }else{
                         //Do not request from itself
                     }
                 }
                 //fmt.Printf("Successful replications using repPointer: %d\n",successfulReplications)
-                if successfulReplications >= ring.RWFactor{
-                    fmt.Printf("[Node %s] Put operation succeeded, replying client\n",node.CName)
-                    responseMessage := &Message{
-                        SenderIP:node.IP,SenderPort:node.Port,Data:cartData,
+                for{
+                    select{
+                    case <-wChannel:
+                        *repPointer = *repPointer + 1
+                        if successfulReplications >= ring.RWFactor{
+                            fmt.Printf("[Node %s] Put operation succeeded, replying client\n",node.CName)
+                            responseMessage := &Message{
+                                SenderIP:node.IP,SenderPort:node.Port,Data:cartData,
+                            }
+                            //fmt.Printf("response message after success replication: %v\n",*responseMessage)
+                            w.WriteHeader(http.StatusOK)
+                            json.NewEncoder(w).Encode(responseMessage)
+                            return
+                        }
+                    case <-time.After(500 * time.Millisecond):
+                            //Return 501 code because Server failed to complete write (which means alot of failures in DB)
+                            http.Error(w, http.StatusText(http.StatusNotImplemented), http.StatusNotImplemented)
+                            return
                     }
-                    //fmt.Printf("response message after success replication: %v\n",*responseMessage)
-                    w.WriteHeader(http.StatusOK)
-                    json.NewEncoder(w).Encode(responseMessage)
-                } else{
-                    //Return 501 code because Server failed to complete write (which means alot of failures in DB)
-                    http.Error(w, http.StatusText(http.StatusNotImplemented), http.StatusNotImplemented)
                 }
             }
         } else{
@@ -860,7 +867,6 @@ func (node *Node) CheckStatusAndSend(dstNodeHash int, msgChnl chan Message, msg 
     }else{
         //Physical node of coordinator node is alive
         fmt.Println("Sending to Physical Node of Coordinator Node ")
-        //fmt.Println("[DEBUG] dstNodeUrl is :",dstNodeURL)
         node.HttpClientReq(msg,dstNodeURL,endpoint,msgChnl)
     }
 }
@@ -1044,7 +1050,6 @@ func main(){
     port := os.Args[1]
     DBPath := os.Args[2]
 
-    
     NodeNumID,strconverr := strconv.Atoi(os.Args[3])
 
     shouldRegisterWithServer, strconverr := strconv.ParseBool(os.Args[4])
@@ -1087,67 +1092,6 @@ func main(){
     }
 
     const REPLICATIONFACTOR = config.REPLICATION_FACTOR
-    //NodeDataArray := make([]ConHash.NodeData,MAX_KEY,MAX_KEY)
-    //fmt.Println("Hello")
-
-    //NodeDataArray[4] = ConHash.NodeData{"A0","A",4,"127.0.0.1","8080"}
-    //NodeDataArray[9] = ConHash.NodeData{"B0","B",9,"127.0.0.1","8081"}
-    //NodeDataArray[14] = ConHash.NodeData{"C0","C",14,"127.0.0.1","8082"}
-    //NodeDataArray[19] = ConHash.NodeData{"D0","D",19,"127.0.0.1","8083"}
-    //NodeDataArray[24] = ConHash.NodeData{"A1","A",24,"127.0.0.1","8080"}
-    //NodeDataArray[29] = ConHash.NodeData{"B1","B",29,"127.0.0.1","8081"}
-    //NodeDataArray[34] = ConHash.NodeData{"C1","C",34,"127.0.0.1","8082"}
-    //NodeDataArray[39] = ConHash.NodeData{"D1","D",39,"127.0.0.1","8083"}
-    //NodeDataArray[44] = ConHash.NodeData{"A2","A",44,"127.0.0.1","8080"}
-    //NodeDataArray[49] = ConHash.NodeData{"B2","B",49,"127.0.0.1","8081"}
-    //NodeDataArray[54] = ConHash.NodeData{"C2","C",54,"127.0.0.1","8082"}
-    //NodeDataArray[59] = ConHash.NodeData{"D2","D",59,"127.0.0.1","8083"}
-    //NodeDataArray[64] = ConHash.NodeData{"A3","A",64,"127.0.0.1","8080"}
-    //NodeDataArray[69] = ConHash.NodeData{"B3","B",69,"127.0.0.1","8081"}
-    //NodeDataArray[74] = ConHash.NodeData{"C3","C",74,"127.0.0.1","8082"}
-    //NodeDataArray[79] = ConHash.NodeData{"D3","D",79,"127.0.0.1","8083"}
-    //NodeDataArray[84] = ConHash.NodeData{"A4","A",84,"127.0.0.1","8080"}
-    //NodeDataArray[89] = ConHash.NodeData{"B4","B",89,"127.0.0.1","8081"}
-    //NodeDataArray[94] = ConHash.NodeData{"C4","C",94,"127.0.0.1","8082"}
-    //NodeDataArray[99] = ConHash.NodeData{"D4","D",99,"127.0.0.1","8083"}
-
-    //demoRing := &ConHash.Ring{
-    //    MaxID: MAX_KEY,
-    //    RingNodeDataArray:NodeDataArray,
-    //    //NodePrefList:NodePrefList,
-    //    NodePrefList: map[int][]ConHash.NodeData{},
-    //    ReplicationFactor: REPLICATIONFACTOR,
-    //}
-
-    //demoRing.GenPrefList()
-
-    //fmt.Printf("Reloading Ring from memory: Ring is %v\n",demoRing)
-
-    //fmt.Printf("Nodes Preference Lists are: %v\n",demoRing.NodePrefList)
-
-    //node.Ring = demoRing
-    //for _,nodeData := range node.Ring.RingNodeDataArray{
-    //    if nodeData.CName == node.CName{
-    //        node.NodeRingPositions = append(node.NodeRingPositions,nodeData.Hash)
-    //    }
-    //}
-    //fmt.Println(node.NodeRingPositions)
-
-    //nodeQuery := "A2"
-	//nodeIP, err := demoRing.GetNode(nodeQuery)
-	//if err == nil {
-    //    fmt.Printf("Node %s found at : %s \n",nodeQuery,nodeIP)
-    //} else{
-    //    fmt.Printf("Node %s not found\n",nodeQuery)
-    //}
-
-    //searchKey := "testing"
-    //nodeHash, addr, err := demoRing.AllocateKey(searchKey)
-    //if err == nil {
-	//	fmt.Printf("Key [%s] found at node %s with ip [%s] \n",searchKey, demoRing.RingNodeDataArray[nodeHash].ID,addr)
-	//} else {
-	//	fmt.Printf("Node for key [%s] not found \n", searchKey )
-	//}
 
     go node.Start()
     time.Sleep(time.Duration(WARMUP_DURATION) * time.Second)

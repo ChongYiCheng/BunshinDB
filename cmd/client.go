@@ -102,7 +102,6 @@ func (client *Client) PutHandler(w http.ResponseWriter, r *http.Request){
 
     // Try to decode the request body into the struct. If there is an error,
     // respond to the client with the error message and a 400 status code
-	fmt.Println(r.Body)
     err := json.NewDecoder(r.Body).Decode(&shoppingCart)
     if err != nil {
         http.Error(w, err.Error(), http.StatusBadRequest)
@@ -175,9 +174,9 @@ func (client *Client) HttpClientReq(msg *Message,targetUrl string,endpoint strin
         for contains(unreachableUrls,targetUrl){
             rand.Seed(time.Now().UTC().Unix())
             dstNodeidx := rand.Intn(len(client.KnownNodeURLs))
-            fmt.Printf("Client sending to Node %s\n",client.KnownNodeURLs[dstNodeidx])
             targetUrl = client.KnownNodeURLs[dstNodeidx]
         }
+        fmt.Printf("Client sending to Node %s\n",targetUrl)
         return client.HttpClientReq(msg, targetUrl, endpoint)
         //return map[string][]byte{}, err
     }
