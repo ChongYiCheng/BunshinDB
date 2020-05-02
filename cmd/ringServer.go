@@ -3,18 +3,19 @@ package main
 import (
 	"50.041-DistSysProject-BunshinDB/pkg/ConHash"
 	"50.041-DistSysProject-BunshinDB/pkg/ServerUtils"
+	"50.041-DistSysProject-BunshinDB/config"
 )
 
 func main() {
 
-	const MAX_KEY = 100;
-	const REPLICATION_FACTOR = 3;
-	const RW_FACTOR = 1;
-	const REGISTER_ENDPOINT = "set-ring"
+	const MAX_KEY = config.MAX_KEY
+	const REPLICATION_FACTOR = config.REPLICATION_FACTOR
+	const RW_FACTOR = config.RW_FACTOR
+	const REGISTER_ENDPOINT = config.RING_REGISTER_ENDPOINT
 	// const STETHO_URL = "http://192.168.1.142:5000"
-	const STETHO_URL = "http://localhost:5000"
-	const STEHO_SERVER_PORT = "5000"
-	const RING_SERVER_PORT = "5001"
+	const STETHO_URL = config.STETHO_URL
+	const STETHO_SERVER_PORT = config.STETHO_SERVER_PORT
+	const RING_SERVER_PORT = config.RING_SERVER_PORT
 
 	ring := ConHash.NewRing(MAX_KEY,REPLICATION_FACTOR,RW_FACTOR)
 

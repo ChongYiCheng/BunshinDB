@@ -4,6 +4,7 @@ import (
 	"50.041-DistSysProject-BunshinDB/pkg/ConHash"
 	"50.041-DistSysProject-BunshinDB/pkg/ConHttp"
 	"50.041-DistSysProject-BunshinDB/pkg/Utils"
+	"50.041-DistSysProject-BunshinDB/config"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -35,9 +36,9 @@ type GetRingOutput struct {
 
 }
 
-const ADD_NODE_URL = "add-node"
-const RING_SERVER_PORT = "5001"
-const NEW_RING_ENDPOINT = "new-ring"
+const ADD_NODE_URL = config.ADD_NODE_URL
+const RING_SERVER_PORT = config.RING_SERVER_PORT
+const NEW_RING_ENDPOINT = config.NEW_RING_ENDPOINT
 
 //TODO: Decide on standard port number for ringServer in future, currently hardcoded as 5001
 func (ringServer *RingServer) HttpServerStart(){

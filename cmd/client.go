@@ -192,15 +192,17 @@ func (client *Client) HttpClientReq(msg *Message,targetUrl string,endpoint strin
         return reconciledData, nil
     } else{
         msgData := resMsg.Data
-        //for k,v := range resMsg.Data{
-        //    var shoppingCart ShoppingCart.ShoppingCart
-        //    unMarshalErr := json.Unmarshal(v,&shoppingCart)
-        //    if unMarshalErr != nil{
-        //        fmt.Errorf("Failed to unmarshal message data")
-        //    }
-        //    msgData[k] = shoppingCart
-        //}
-        fmt.Printf("Data of the message is \n%v\n",msgData)
+        for k,v := range resMsg.Data{
+            var shoppingCart ShoppingCart.ShoppingCart
+            unMarshalErr := json.Unmarshal(v,&shoppingCart)
+            if unMarshalErr != nil{
+                fmt.Errorf("Failed to unmarshal message data")
+            }
+            
+            fmt.Printf("User %s's Shopping cart retrieved:  %v\n",k,shoppingCart)
+            
+        }
+        // fmt.Printf("Data of the message is \n%v\n",msgData)
         return msgData, nil
     }
 }

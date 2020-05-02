@@ -4,6 +4,7 @@ import (
     "50.041-DistSysProject-BunshinDB/pkg/Utils"
     "50.041-DistSysProject-BunshinDB/pkg/ConHash"
     "50.041-DistSysProject-BunshinDB/pkg/ShoppingCart"
+    "50.041-DistSysProject-BunshinDB/config"
     "bufio"
     "bytes"
     "encoding/json"
@@ -80,9 +81,9 @@ func InPrefList(prefList []ConHash.NodeData, nodeIP string, nodePort string) boo
 }
 
 
-const RING_MAX_ID = 64
-const REGISTER_ENDPOINT = "add-node"
-const WARMUP_DURATION = 3 //wait before node registers
+const RING_MAX_ID = config.RING_MAX_ID
+const REGISTER_ENDPOINT = config.NODESERVER_REGISTER_ENDPOINT
+const WARMUP_DURATION = config.NODESERVER_WARMUP_DURATION //wait before node registers
 //TODO: consider hashing on the server side
 func (n *Node) RegisterWithRingServer(ringUrl string) {
     nodeDataArray := []ConHash.NodeData {}
@@ -1067,10 +1068,10 @@ func main(){
         os.Exit(0)
     }
 	//Set constants here
-	const NUMBER_OF_VNODES = 4;
-	const MAX_KEY = 100;
-    const REPLICATION_FACTOR = 3;
-    const RW_FACTOR = 1;
+	const NUMBER_OF_VNODES = config.NUMBER_OF_VNODES;
+	const MAX_KEY = config.MAX_KEY;
+    const REPLICATION_FACTOR = config.REPLICATION_FACTOR;
+    const RW_FACTOR = config.RW_FACTOR;
 
     currentIP, err := Utils.ExternalIP()
     fmt.Printf("Setting Node's IP to be %s\n",currentIP)
@@ -1108,7 +1109,7 @@ func main(){
 	//node.RegisterWithRing(node.Ring)
     //For demo purposes, gonna hard code a ring
     //const MAXID = 100
-    const REPLICATIONFACTOR = 3
+    const REPLICATIONFACTOR = config.REPLICATION_FACTOR
     NodeDataArray := make([]ConHash.NodeData,MAX_KEY,MAX_KEY)
     fmt.Println("Hello")
 

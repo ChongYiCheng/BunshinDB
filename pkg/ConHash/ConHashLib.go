@@ -1,6 +1,7 @@
 package ConHash
 
 import (
+	"50.041-DistSysProject-BunshinDB/config"
 	"crypto/md5"
 	"errors"
 	"fmt"
@@ -109,7 +110,7 @@ func (n *Node) RegisterWithRing(r *Ring) {
 	fmt.Printf("Ring registered for %s: %s  \n", n.ID, ToString(n.NodeDataArray))
 }
 
-const RING_URL = "localhost:5001"
+const RING_URL = config.RING_URL
 
 
 func (r *Ring) RegisterNodes(nodeDataArray []NodeData) []NodeData{

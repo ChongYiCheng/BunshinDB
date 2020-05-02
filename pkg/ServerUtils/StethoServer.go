@@ -4,6 +4,7 @@ import (
 	"50.041-DistSysProject-BunshinDB/pkg/ConHash"
 	"50.041-DistSysProject-BunshinDB/pkg/ConHttp"
 	"50.041-DistSysProject-BunshinDB/pkg/Utils"
+	"50.041-DistSysProject-BunshinDB/config"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -16,9 +17,9 @@ import (
 )
 
 
-const FAINT_NODE_ENDPOINT = "faint-node"
-const REMOVE_NODE_ENDPOINT = "remove-node"
-const REVIVE_NODE_ENDPOINT = "revive-node"
+const FAINT_NODE_ENDPOINT = config.FAINT_NODE_ENDPOINT
+const REMOVE_NODE_ENDPOINT = config.REMOVE_NODE_ENDPOINT
+const REVIVE_NODE_ENDPOINT = config.REVIVE_NODE_ENDPOINT
 //Once we exceed 10, we will declare it as a "permanent failure"
 
 //used only for to store and to marshal out
