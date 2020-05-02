@@ -163,13 +163,13 @@ func (client *Client) HttpClientReq(msg *Message,targetUrl string,endpoint strin
         fmt.Printf("Cannot reach server at %v\n",url)
         unreachableUrl := targetUrl
         for targetUrl == unreachableUrl{
-            rand.Seed(time.Now().Unix())
+            rand.Seed(time.Now().UTC().Unix())
             dstNodeidx := rand.Intn(len(client.KnownNodeURLs))
             fmt.Printf("Client sending to Node %s\n",client.KnownNodeURLs[dstNodeidx])
             targetUrl = client.KnownNodeURLs[dstNodeidx]
         }
-        go client.HttpClientReq(msg, targetUrl, endpoint)
-        return map[string][]byte{}, err
+        return client.HttpClientReq(msg, targetUrl, endpoint)
+        //return map[string][]byte{}, err
     }
     defer res.Body.Close()
     fmt.Println("HTTP Client Req - Got a response")

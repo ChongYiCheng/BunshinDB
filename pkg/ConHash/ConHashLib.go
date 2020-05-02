@@ -173,7 +173,6 @@ func HashMD5(text string, min int, max int) int {
 	for _, num := range byteArray{
 		output += int(num)
 	}
-
 	return output % (max - min + 1) + min
 }
 
@@ -184,7 +183,7 @@ func (ring *Ring) AllocateKey(key string) (int,string,error){
     var NodeNotFound = errors.New("Node not found")
 
     nodeArray := ring.RingNodeDataArray
-    fmt.Println("[DEBUG] Length of node array is: ",nodeArray)
+    fmt.Println("[DEBUG] Length of node array is: ",len(nodeArray))
     keyHash := HashMD5(key,0,len(nodeArray)-1)
     var firstNodeAddress int //Keep a pointer to the first node address encountered just in case
     firstNodeAddress = -1 // -1 is an impossible number in context of node array, 

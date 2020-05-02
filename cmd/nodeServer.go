@@ -444,6 +444,16 @@ func (node *Node) NewRingHandler(w http.ResponseWriter, r *http.Request) {
             node.NodeRingPositions = append(node.NodeRingPositions,nodeData.Hash)
         }
     }
+    file, marshalIndentErr := json.MarshalIndent(ring, "", " ")
+    if marshalIndentErr != nil{
+        fmt.Errorf("Failed to marshal ring into JSON file")
+    }
+    ringJsonPath := fmt.Sprintf("/tmp/%s_RING",node.CName)
+    writeFileErr := ioutil.WriteFile(ringJsonPath, file, 0644)
+    if writeFileErr != nil{
+        fmt.Errorf("Failed to write JSON file to path %s",ringJsonPath)
+    }
+
     //Check Hinted Handoff against new ring and send hinted hand off if node for hinted handoff is alive
     node.CheckHintedHandOff()
     node.ScanDB()
@@ -486,7 +496,7 @@ func (node *Node) ScanDB(){
             if err != nil{
                 fmt.Errorf("Error in retrieving cartData from DB")
             }
-	        fmt.Printf("[Node %s] Sending key=%s, value=%s to Node %s\n",node.CName, k, cartBytes, node.Ring.RingNodeDataArray[dstNodeHash].ID)
+	        fmt.Printf("[Node %s] Sending data for key=%s to Node %s\n",node.CName, k, node.Ring.RingNodeDataArray[dstNodeHash].ID)
             cartData := map[string][]byte{key:[]byte(cartBytes)}
             writeMsg := &Message{
                 SenderIP:node.IP,SenderPort:node.Port,Data:cartData,
@@ -499,7 +509,7 @@ func (node *Node) ScanDB(){
                 node.CheckStatusAndSend(dstNodeHash,msgChnl,msgToSend,"put")
             }(dstNodeHash,rChannel,writeMsg)
             responseMessage := <-rChannel
-            fmt.Printf("[Node %s] ScanDB() completes transfer with message %v\n",node.CName,responseMessage)
+            fmt.Printf("[Node %s] ScanDB() completes transfer \n",node.CName)
             //Check if this node is still inside the preference list, if not mark this key-value pair for removal from database
             if ( InPrefList(node.Ring.NodePrefList[dstNodeHash],node.IP,node.Port) == false){
                 markedForRemoval = append(markedForRemoval,key)
@@ -1042,6 +1052,22 @@ func main(){
         NodeStatuses:      nil,
     })
     node := Node{conNode}
+    //TODO recovery for ring
+    oldRingPath := fmt.Sprintf("/tmp/%s_RING",node.CName)
+    ringInMemory := Utils.FileExists(oldRingPath)
+    if ringInMemory{
+        fmt.Printf("[Node %s] Reloading ring from memory\n",node.CName)
+        ringJson, readFileErr := ioutil.ReadFile(oldRingPath)
+        if readFileErr != nil{
+            fmt.Errorf("Error trying to read Ring from JSON file")
+        }
+        var oldRing ConHash.Ring
+        unmarshalErr := json.Unmarshal(ringJson, &oldRing)
+        if unmarshalErr != nil{
+            fmt.Errorf("Failed to unmarshal content from json file into ring")
+        }
+        node.Ring = &oldRing
+    }
 
     const REPLICATIONFACTOR = config.REPLICATION_FACTOR
     //NodeDataArray := make([]ConHash.NodeData,MAX_KEY,MAX_KEY)
