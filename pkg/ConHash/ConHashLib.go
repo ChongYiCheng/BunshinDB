@@ -166,7 +166,6 @@ func HashMD5(text string, min int, max int) int {
 	for _, num := range byteArray{
 		output += int(num)
 	}
-
 	return output % (max - min + 1) + min
 }
 
@@ -202,7 +201,6 @@ func (ring *Ring) AllocateKey(key string) (int,string,error){
 
 func (ring *Ring) GenPrefList(){
     nodeArray := ring.RingNodeDataArray
-    fmt.Println("Hello!")
     for i := 0 ; i < len(nodeArray) ; i++ {
         if nodeArray[i].ID != ""{
             // if node not empty, assign preference list

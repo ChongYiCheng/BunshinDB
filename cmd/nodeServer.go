@@ -19,6 +19,7 @@ import (
     "strconv"
     "strings"
     "time"
+    "reflect"
 )
 
 
@@ -53,7 +54,7 @@ func (node *Node) Start(){
     handle(err)
     defer db.Close()
     node.NodeDB = db
-    //TODO: Add a db for Hinted Handoff
+    //Database for hinted handoff
     hhQueue , hhErr := badger.Open(badger.DefaultOptions(node.DBPath+"/hhQueue"))
     node.HHQueue = hhQueue
     handle(hhErr)
@@ -141,20 +142,19 @@ func (node *Node) GetHandler(w http.ResponseWriter, r *http.Request) {
         return
     }
     fmt.Println("Get Handler - Allocating Key")
-    fmt.Println(msg)
     query := msg.Query
     ring := node.Ring
     dstNodeHash, _ , AllocErr := ring.AllocateKey(query)
     if AllocErr != nil{
-        fmt.Println("Failed to allocate node to key [%s]",query)
+        fmt.Printf("Failed to allocate node to key [%s]\n",query)
     }
 
     //Allow Nodes to check if they're in the Coordinator Node's pref list
     //If so, let them retrieve the item from their database
     if (contains(node.NodeRingPositions,dstNodeHash) || InPrefList(ring.NodePrefList[dstNodeHash],node.IP,node.Port)){ //If this node is responsible 
-        fmt.Println("This Node is Coordinator or inPrefList")
+        fmt.Printf("[Node %s] Is Coordinator or inPrefList\n",node.CName)
 
-        //First, try to retrieve the data from the databaseFirst, try to retrieve the data from the database
+        //First, try to retrieve the data from the database
         fmt.Println("Get Handler - Retrieving Key Value pair and sending it back to Requestor")
         var responseStatus string
         queryResponse, err := node.QueryDB(query)
@@ -166,8 +166,8 @@ func (node *Node) GetHandler(w http.ResponseWriter, r *http.Request) {
         //R mechanism here - Checking to ensure R responses received before replying to client
         if ((ring.RingNodeDataArray[dstNodeHash].IP == msg.SenderIP && ring.RingNodeDataArray[dstNodeHash].Port == msg.SenderPort) ||
         InPrefList(ring.NodePrefList[dstNodeHash],msg.SenderIP,msg.SenderPort)){
-            //If this request is due to the R process
-            fmt.Println("This Node is responding to a R broadcast")
+            //If this request is due to the R broadcast from a coordinating node
+            fmt.Printf("[Node %s] is responding to a R broadcast\n",node.CName)
             responseMessage := &Message{
                 SenderIP:node.IP,SenderPort:node.Port,Data:queryResponse,
             }
@@ -177,7 +177,7 @@ func (node *Node) GetHandler(w http.ResponseWriter, r *http.Request) {
             json.NewEncoder(w).Encode(responseMessage)
         } else{
             //This node has to take initiative to start the R process.
-            fmt.Println("This Node is initiating an R broadcast")
+            fmt.Printf("[Node %s] is initiating an R broadcast\n",node.CName)
             otherReplicas := []ConHash.NodeData{}
 
             otherReplicas = append(otherReplicas,ring.RingNodeDataArray[dstNodeHash])
@@ -199,9 +199,9 @@ func (node *Node) GetHandler(w http.ResponseWriter, r *http.Request) {
             for _,replicaNodeData := range otherReplicas{
                 if replicaNodeData.CName != node.CName{
                     physicalNodeID := replicaNodeData.CName + "0"
-                    fmt.Printf("Status of physical Node: %t\n",node.Ring.NodeStatuses[physicalNodeID])
-                    statusOfPhysicalNode := node.Ring.NodeStatuses[physicalNodeID]
                     //Checks status of the target node's physical node. Skip if it has fainted(temporarily down)
+                    //fmt.Printf("Status of physical Node: %t\n",node.Ring.NodeStatuses[physicalNodeID])
+                    statusOfPhysicalNode := node.Ring.NodeStatuses[physicalNodeID]
                     if statusOfPhysicalNode == false{
                         fmt.Printf("Skipping node %v because it has fainted\n",replicaNodeData)
                     }else{
@@ -217,18 +217,17 @@ func (node *Node) GetHandler(w http.ResponseWriter, r *http.Request) {
                                 json.Unmarshal(shoppingCartBytes,&shoppingCart)
                                 shoppingCartVersions = append(shoppingCartVersions,shoppingCart)
                             } else{
-                                // Do nothing :')
+                                // Do nothing
                             }
                         }(replicaNodeData)
                     }
 
                 }
             }
-
             //Reconcile differences between the shopping carts received by doing syntactic reconciliation
             listOfConflictingShoppingCarts := ShoppingCart.CompareShoppingCarts(shoppingCartVersions)
-            //If reconciliation is successful
-            if len(listOfConflictingShoppingCarts)== 1{
+            //If reconciliation is successful and only a single cart is left
+            if len(listOfConflictingShoppingCarts) == 1{
                 //Return the best version to client
                 reconciledCartJson, marshalErr := json.Marshal(listOfConflictingShoppingCarts[0])
                 if marshalErr != nil{
@@ -239,7 +238,6 @@ func (node *Node) GetHandler(w http.ResponseWriter, r *http.Request) {
                     SenderIP:node.IP,SenderPort:node.Port,Data:responseData,
                 }
                 json.NewEncoder(w).Encode(responseMessage)
-            
             } else if len(listOfConflictingShoppingCarts) > 1{
                 //There are multiple conflicting versions of the shopping cart
                 //Need to send client the multiple conflicting versions to allow client to do semantic reconciliation
@@ -262,7 +260,7 @@ func (node *Node) GetHandler(w http.ResponseWriter, r *http.Request) {
             }
         }
     } else{
-        fmt.Println("Get Handler - Relaying Key to the Coordinator Node")
+        fmt.Printf("[Node %s] Get Handler - Relaying Key to the Coordinator Node %s\n",node.CName,ring.RingNodeDataArray[dstNodeHash].CName)
         //Fallback mechanism if Coordinator Node is not alive
         rChannel := make(chan Message)
         go func(dstNodeHash int,msgChnl chan Message, msgToSend *Message) {
@@ -270,14 +268,14 @@ func (node *Node) GetHandler(w http.ResponseWriter, r *http.Request) {
             node.CheckStatusAndSend(dstNodeHash,msgChnl,msgToSend,"get")
         }(dstNodeHash,rChannel,msg)
         responseMessage := <-rChannel
-        fmt.Printf("Response message from coordinator node: %v\n",responseMessage)
+        fmt.Printf("[Node %s] Received response message from coordinator node\n",node.CName)
         json.NewEncoder(w).Encode(&responseMessage)
     }
 }
 
 
 func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
-    fmt.Println("Put Handler activated")
+    fmt.Printf("[Node %s] Put Handler activated\n",node.CName)
     var msg *Message
 
     w.Header().Set("Content-Type", "application/json")
@@ -293,21 +291,21 @@ func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
     }
     msgData := msg.Data
     ring := node.Ring
-    fmt.Println("Put Handler - Allocating Key")
+    //fmt.Println("Put Handler - Allocating Key")
     for key, _ := range msgData{
         //ring.AllocateKey returns a destination node hash and a destination node url(not needed as hash will be used to find the url later on)
-        dstNodeHash, _ , AllocErr := ring.AllocateKey(key) 
+        dstNodeHash, _ , AllocErr := ring.AllocateKey(key)
         if AllocErr != nil{
-            fmt.Println("Failed to allocate node to key [%s]",key)
+            fmt.Printf("Failed to allocate node to key [%s]\n",key)
             http.Error(w, err.Error(), 400)
             return
         }
         //Allow Nodes to check if they're in the Coordinator Node's pref list
         //If so, let them retrieve the item from their database
         if (contains(node.NodeRingPositions,dstNodeHash) || InPrefList(ring.NodePrefList[dstNodeHash],node.IP,node.Port)){ //If this node is responsible 
-            fmt.Println("Node is Coordinator/InPrefList")
+            fmt.Printf("[Node %s] Node is Coordinator/InPrefList\n",node.CName)
 
-            //First, try to retrieve the data from the databaseFirst, try to retrieve the data from the database
+            //First, try to retrieve the data from the database. First, try to retrieve the data from the database
             //Write mechanism here - To send out to the replicas and ensure W successful writes from W nodes
             if ((ring.RingNodeDataArray[dstNodeHash].IP == msg.SenderIP && ring.RingNodeDataArray[dstNodeHash].Port == msg.SenderPort) ||
             InPrefList(ring.NodePrefList[dstNodeHash],msg.SenderIP,msg.SenderPort)){
@@ -323,16 +321,15 @@ func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
                 responseMessage := &Message{
                     SenderIP:node.IP,SenderPort:node.Port,Data:msgData,
                 }
-                fmt.Printf("ResponseStatus is %s\n",responseStatus)
                 if responseStatus == "400"{
                     http.Error(w, http.StatusText(http.StatusBadRequest),http.StatusBadRequest)
                 } else{
-                    fmt.Println("Replying response msg!")
+                    fmt.Printf("[Node %s] Acknowledging successful put request by Coordinating Node\n",node.CName)
                     json.NewEncoder(w).Encode(responseMessage)
                 }
             } else{
-                fmt.Println("Node is initiating W process")
-                fmt.Printf("This is because the msg was sent by %s:%s\n",msg.SenderIP,msg.SenderPort)
+                fmt.Printf("[Node %s] is initiating W process\n",node.CName)
+                //fmt.Printf("This is because the msg was sent by %s:%s\n",msg.SenderIP,msg.SenderPort)
                 //This node has to take initiative to start the W process.
                 //We need to convert the data back to a shopping cart structure
                 var clientShoppingCart ShoppingCart.ShoppingCart
@@ -363,9 +360,9 @@ func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
                 var repPointer = &successfulReplications
                 wChannel := make(chan Message)
                 //This sends to the other replicas
-                fmt.Printf("Other Replicas : %v\n",otherReplicas)
+                //fmt.Printf("Other Replicas : %v\n",otherReplicas)
                 for _,replicaNodeData := range otherReplicas{
-                    fmt.Printf("ReplicaNodeData is %v\n",replicaNodeData)
+                    //fmt.Printf("ReplicaNodeData is %v\n",replicaNodeData)
                     if replicaNodeData.CName != node.CName{
                         physicalNodeID := replicaNodeData.CName + "0"
                         statusOfPhysicalNode := node.Ring.NodeStatuses[physicalNodeID]
@@ -376,13 +373,6 @@ func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
                             replicaNodeHash := replicaNodeData.Hash
                             //Save replicaNodeHash,key value as hinted handoff in this node
                             node.RunHintedHandOff(replicaNodeHash,key,[]byte(clientCartBytes))
-                            //Respond with OK because already kept as hinted handoff
-                            responseMessage := &Message{
-                                SenderIP:node.IP,SenderPort:node.Port,Data:msgData,
-                            }
-                            w.WriteHeader(http.StatusOK)
-                            json.NewEncoder(w).Encode(responseMessage)
-                            return
                         }else{
                             //If destination node's physical node is alive, send to it
                             fmt.Println("Proceed to send to replica")
@@ -391,30 +381,34 @@ func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
                                 fmt.Printf("Sending replica to %s\n",replicaNodeDataUrl)
                                 node.HttpClientReq(writeMsg,replicaNodeDataUrl,"put",rcvChannel)
                             }(replicaNodeData,wChannel)
-                            <-wChannel
-                            fmt.Println("Replication pointer +1")
-                            *repPointer = *repPointer + 1
                         }
                     }else{
-                        fmt.Println("Skip cause it is ownself")
+                        //Do not request from itself
                     }
                 }
-                fmt.Printf("Successful replications using repPointer: %d\n",successfulReplications)
-                if successfulReplications >= ring.RWFactor{
-                    fmt.Println("Write is successful!")
-                    responseMessage := &Message{
-                        SenderIP:node.IP,SenderPort:node.Port,Data:cartData,
+                for{
+                    select{
+                    case <-wChannel:
+                        *repPointer = *repPointer + 1
+                        if successfulReplications >= ring.RWFactor{
+                            fmt.Printf("[Node %s] Put operation succeeded, replying client\n",node.CName)
+                            responseMessage := &Message{
+                                SenderIP:node.IP,SenderPort:node.Port,Data:cartData,
+                            }
+                            //fmt.Printf("response message after success replication: %v\n",*responseMessage)
+                            w.WriteHeader(http.StatusOK)
+                            json.NewEncoder(w).Encode(responseMessage)
+                            return
+                        }
+                    case <-time.After(500 * time.Millisecond):
+                            //Return 501 code because Server failed to complete write (which means alot of failures in DB)
+                            http.Error(w, http.StatusText(http.StatusNotImplemented), http.StatusNotImplemented)
+                            return
                     }
-                    fmt.Printf("response message after success replication: %v\n",*responseMessage)
-                    w.WriteHeader(http.StatusOK)
-                    json.NewEncoder(w).Encode(responseMessage)
-                } else{
-                    //Return 501 code because Server failed to complete write (which means alot of failures in DB)
-                    http.Error(w, http.StatusText(http.StatusNotImplemented), http.StatusNotImplemented)
                 }
             }
         } else{
-            fmt.Println("Node is relaying client request to Coordinator")
+            fmt.Printf("[Node %s] Relaying client request to Coordinator\n",node.CName)
             rChannel := make(chan Message)
             go func(dstNodeHash int,msgChnl chan Message,msgToSend *Message) {
                 node.CheckStatusAndSend(dstNodeHash,msgChnl,msgToSend,"put")
@@ -427,11 +421,17 @@ func (node *Node) PutHandler(w http.ResponseWriter, r *http.Request) {
 
 func (node *Node) NewRingHandler(w http.ResponseWriter, r *http.Request) {
 
-    log.Printf("[Node %s] Received new ring", node.ID)
+    log.Printf("[Node %s] Received new ring\n", node.ID)
     body, err := ioutil.ReadAll(r.Body)
     if err != nil {
         log.Fatalln(err)
     }
+    //Track number of unique nodes in the previous ring
+    uniqueNodes := map[string]struct{}{}
+    for k,_ := range node.Ring.NodeStatuses{
+        uniqueNodes[k] = struct{}{}
+    }
+
 
     var ring ConHash.Ring
     err = json.Unmarshal(body, &ring)
@@ -447,9 +447,27 @@ func (node *Node) NewRingHandler(w http.ResponseWriter, r *http.Request) {
             node.NodeRingPositions = append(node.NodeRingPositions,nodeData.Hash)
         }
     }
+    file, marshalIndentErr := json.MarshalIndent(ring, "", " ")
+    if marshalIndentErr != nil{
+        fmt.Errorf("Failed to marshal ring into JSON file")
+    }
+    ringJsonPath := fmt.Sprintf("/tmp/%s_RING",node.CName)
+    writeFileErr := ioutil.WriteFile(ringJsonPath, file, 0644)
+    if writeFileErr != nil{
+        fmt.Errorf("Failed to write JSON file to path %s",ringJsonPath)
+    }
+
     //Check Hinted Handoff against new ring and send hinted hand off if node for hinted handoff is alive
     node.CheckHintedHandOff()
-    node.ScanDB()
+    //Compare unique nodes in new ring to the previous ring.
+    //If unique nodes are different, reallocate keys
+    newUniqueNodes := map[string]struct{}{}
+    for k,_ := range node.Ring.NodeStatuses{
+        newUniqueNodes[k] = struct{}{}
+    }
+    if reflect.DeepEqual(uniqueNodes,newUniqueNodes) == false{
+        node.ScanDB()
+    }
     fmt.Printf("Updated Node Positions: %v\n",node.NodeRingPositions)
 
 }
@@ -460,6 +478,7 @@ func (node *Node) NewRingHandler(w http.ResponseWriter, r *http.Request) {
 func (node *Node) ScanDB(){
     fmt.Println("Entering ScanDB()")
     db := node.NodeDB
+    markedForRemoval := []string{}
 	err := db.View(func(txn *badger.Txn) error {
         opts := badger.DefaultIteratorOptions
         opts.PrefetchSize = 10
@@ -469,7 +488,7 @@ func (node *Node) ScanDB(){
 	    item := it.Item()
 	    k := item.Key()
         key := string(k)
-        dstNodeHash,dstNodeUrl,allocErr := node.Ring.AllocateKey(key)
+        dstNodeHash,_,allocErr := node.Ring.AllocateKey(key)
         if allocErr != nil{
             fmt.Errorf("Failed to allocate key")
         }
@@ -488,27 +507,39 @@ func (node *Node) ScanDB(){
             if err != nil{
                 fmt.Errorf("Error in retrieving cartData from DB")
             }
-	        fmt.Printf("Sending key=%s, value=%s to Node %s\n", k, cartBytes, node.Ring.RingNodeDataArray[dstNodeHash].ID)
+	        fmt.Printf("[Node %s] Sending data for key=%s to Node %s\n",node.CName, k, node.Ring.RingNodeDataArray[dstNodeHash].ID)
             cartData := map[string][]byte{key:[]byte(cartBytes)}
             writeMsg := &Message{
                 SenderIP:node.IP,SenderPort:node.Port,Data:cartData,
             }
-            fmt.Printf("ScanDB - dstNodeUrl is %s\n",dstNodeUrl)
-            fmt.Printf("ScanDB - dstNodeHash is ")
-            
+            //fmt.Printf("ScanDB - dstNodeUrl is %s\n",dstNodeUrl)
+            //fmt.Printf("ScanDB - dstNodeHash is ")
             rChannel := make(chan Message)
             go func(dstNodeHash int,msgChnl chan Message,msgToSend *Message) {
                 //Check status of the dst node's physical node. If down, look for next best option 
                 node.CheckStatusAndSend(dstNodeHash,msgChnl,msgToSend,"put")
             }(dstNodeHash,rChannel,writeMsg)
-            responseMessage := <-rChannel
-            fmt.Printf("ScanDB() completes transfer with message %v\n",responseMessage)
+            //responseMessage := <-rChannel
+            <-rChannel
+            fmt.Printf("[Node %s] ScanDB() completes transfer \n",node.CName)
+            //Check if this node is still inside the preference list, if not mark this key-value pair for removal from database
+            if ( InPrefList(node.Ring.NodePrefList[dstNodeHash],node.IP,node.Port) == false){
+                fmt.Printf("[Node %s] Removing key %s from database\n",node.CName,key)
+                markedForRemoval = append(markedForRemoval,key)
+            }
         }
 
 	  }
 	  return nil
 	})
     handle(err)
+    //Delete the keys that were marked for removal
+    for _,staleKey := range markedForRemoval{
+        deleteErr := node.DeleteKey(staleKey)
+        if deleteErr != nil{
+            fmt.Errorf("Failed to delete key [%s]\n",staleKey)
+        }
+    }
 }
 
 func (node *Node) GetNodeHandler(w http.ResponseWriter, r *http.Request) {
@@ -530,7 +561,7 @@ func (node *Node) GetNodeHandler(w http.ResponseWriter, r *http.Request) {
     query := msg.Query //Get key
     dstNodeHash, dstNodeUrl, AllocErr := ring.AllocateKey(query)
     if AllocErr != nil{
-        fmt.Println("Failed to allocate node to key [%s]",query)
+        fmt.Printf("Failed to allocate node to key [%s]\n",query)
     }
     responseData := make(map[string][]byte)
     responseData["key"]=[]byte(query)
@@ -539,7 +570,7 @@ func (node *Node) GetNodeHandler(w http.ResponseWriter, r *http.Request) {
     responseMessage := &Message{
         SenderIP:node.IP,SenderPort:node.Port,Data:responseData,
     }
-    fmt.Println(responseMessage)
+    fmt.Printf("[Node %s] Responding to Client's query\n",node.CName)
     json.NewEncoder(w).Encode(responseMessage)
 }
 
@@ -553,9 +584,9 @@ func (node *Node) HeartbeatHandler(w http.ResponseWriter, r *http.Request) {
 func (node *Node) HttpClientReq(msg *Message,targetUrl string,endpoint string, relayChannel chan Message){
 	client := &http.Client{
 	}
-    fmt.Println("HTTP Client Req function called")
+    //fmt.Println("HTTP Client Req function called")
     url := fmt.Sprintf("http://%s/%s",targetUrl,endpoint)
-    fmt.Printf("HTTP Client Req target url is %s\n",url)
+    fmt.Printf("[Node %s] Sending HTTP Req to url: %s\n",node.CName,url)
     jsonBuffer, err := json.Marshal(msg)
     handle(err)
 
@@ -635,7 +666,6 @@ func (node *Node) QueryDB(queryKey string) (map[string][]byte,error){
 	    return err
     }
 
-	
 	err = item.Value(func(val []byte) error {
 	// This func with val would only be called if item.Value encounters no error.
 
@@ -651,7 +681,7 @@ func (node *Node) QueryDB(queryKey string) (map[string][]byte,error){
     }
 
 	// You must copy it to use it outside item.Value(...).
-	fmt.Printf("The answer is: %s\n", valCopy)
+	fmt.Printf("Value for key [%s] is: %s\n",queryKey, valCopy)
 
 	return nil
 	})
@@ -687,7 +717,7 @@ func (node *Node) CheckHintedHandOff(){
     //Convert hintedhandoff database to a map[string][]byte
     hhMap := node.HHDBtoMap()
     if len(hhMap) == 0{
-        // Don't check the hitned handoff database if it is empty
+        // Don't check the hinted handoff database if it is empty
         
     }else{
         ring := node.Ring
@@ -740,9 +770,8 @@ func (node *Node) CheckHintedHandOff(){
 
 
             }
-    
         }
-    } 
+    }
 
 }
 
@@ -772,6 +801,7 @@ func (node *Node) HHDBtoMap() map[string][]byte {
     handle(err)
     return hhQueue
 }
+
 //Updates the hinted handoff badger database by adding new hinted handoff
 func (node *Node) UpdateHH(update map[string][]byte) error{
     db := node.HHQueue
@@ -786,6 +816,7 @@ func (node *Node) UpdateHH(update map[string][]byte) error{
     err := txn.Commit()
     return err
 }
+
 //Deletes hintedhandoff item in hinted handoff badger database
 func (node *Node) DeleteHHKey(Key string) error{
     db := node.HHQueue
@@ -820,6 +851,7 @@ func (node *Node) CheckStatusAndSend(dstNodeHash int, msgChnl chan Message, msg 
                 fmt.Printf("Relaying to %v instead\n",nodeData)
                 newDstNodeURL := fmt.Sprintf("%s:%s",nodeData.IP,nodeData.Port)
                 node.HttpClientReq(msg,newDstNodeURL,endpoint,msgChnl)
+                break
             }
         }
     }else{
@@ -1008,7 +1040,6 @@ func main(){
     port := os.Args[1]
     DBPath := os.Args[2]
 
-    
     NodeNumID,strconverr := strconv.Atoi(os.Args[3])
 
     shouldRegisterWithServer, strconverr := strconv.ParseBool(os.Args[4])
@@ -1020,7 +1051,7 @@ func main(){
     if strconverr != nil{
         fmt.Errorf("Failed to convert NodeNumID to int. Please enter an integer")
     }
-    fmt.Println("Testing 1")
+    //fmt.Println("Testing 1")
 
 
 	conNode := ConHash.NewNode(NodeNumID, NUMBER_OF_VNODES,DBPath,currentIP,port, &ConHash.Ring{
@@ -1032,69 +1063,24 @@ func main(){
         NodeStatuses:      nil,
     })
     node := Node{conNode}
+    //TODO recovery for ring
+    oldRingPath := fmt.Sprintf("/tmp/%s_RING",node.CName)
+    ringInMemory := Utils.FileExists(oldRingPath)
+    if ringInMemory{
+        fmt.Printf("[Node %s] Reloading ring from memory\n",node.CName)
+        ringJson, readFileErr := ioutil.ReadFile(oldRingPath)
+        if readFileErr != nil{
+            fmt.Errorf("Error trying to read Ring from JSON file")
+        }
+        var oldRing ConHash.Ring
+        unmarshalErr := json.Unmarshal(ringJson, &oldRing)
+        if unmarshalErr != nil{
+            fmt.Errorf("Failed to unmarshal content from json file into ring")
+        }
+        node.Ring = &oldRing
+    }
 
     const REPLICATIONFACTOR = config.REPLICATION_FACTOR
-    NodeDataArray := make([]ConHash.NodeData,MAX_KEY,MAX_KEY)
-    fmt.Println("Hello")
-
-    NodeDataArray[4] = ConHash.NodeData{"A0","A",4,"127.0.0.1","8080"}
-    NodeDataArray[9] = ConHash.NodeData{"B0","B",9,"127.0.0.1","8081"}
-    NodeDataArray[14] = ConHash.NodeData{"C0","C",14,"127.0.0.1","8082"}
-    NodeDataArray[19] = ConHash.NodeData{"D0","D",19,"127.0.0.1","8083"}
-    NodeDataArray[24] = ConHash.NodeData{"A1","A",24,"127.0.0.1","8080"}
-    NodeDataArray[29] = ConHash.NodeData{"B1","B",29,"127.0.0.1","8081"}
-    NodeDataArray[34] = ConHash.NodeData{"C1","C",34,"127.0.0.1","8082"}
-    NodeDataArray[39] = ConHash.NodeData{"D1","D",39,"127.0.0.1","8083"}
-    NodeDataArray[44] = ConHash.NodeData{"A2","A",44,"127.0.0.1","8080"}
-    NodeDataArray[49] = ConHash.NodeData{"B2","B",49,"127.0.0.1","8081"}
-    NodeDataArray[54] = ConHash.NodeData{"C2","C",54,"127.0.0.1","8082"}
-    NodeDataArray[59] = ConHash.NodeData{"D2","D",59,"127.0.0.1","8083"}
-    NodeDataArray[64] = ConHash.NodeData{"A3","A",64,"127.0.0.1","8080"}
-    NodeDataArray[69] = ConHash.NodeData{"B3","B",69,"127.0.0.1","8081"}
-    NodeDataArray[74] = ConHash.NodeData{"C3","C",74,"127.0.0.1","8082"}
-    NodeDataArray[79] = ConHash.NodeData{"D3","D",79,"127.0.0.1","8083"}
-    NodeDataArray[84] = ConHash.NodeData{"A4","A",84,"127.0.0.1","8080"}
-    NodeDataArray[89] = ConHash.NodeData{"B4","B",89,"127.0.0.1","8081"}
-    NodeDataArray[94] = ConHash.NodeData{"C4","C",94,"127.0.0.1","8082"}
-    NodeDataArray[99] = ConHash.NodeData{"D4","D",99,"127.0.0.1","8083"}
-
-    demoRing := &ConHash.Ring{
-        MaxID: MAX_KEY,
-        RingNodeDataArray:NodeDataArray,
-        //NodePrefList:NodePrefList,
-        NodePrefList: map[int][]ConHash.NodeData{},
-        ReplicationFactor: REPLICATIONFACTOR,
-    }
-
-    demoRing.GenPrefList()
-
-    fmt.Printf("Reloading Ring from memory: Ring is %v\n",demoRing)
-
-    fmt.Printf("Nodes Preference Lists are: %v\n",demoRing.NodePrefList)
-
-    node.Ring = demoRing
-    for _,nodeData := range node.Ring.RingNodeDataArray{
-        if nodeData.CName == node.CName{
-            node.NodeRingPositions = append(node.NodeRingPositions,nodeData.Hash)
-        }
-    }
-    fmt.Println(node.NodeRingPositions)
-
-    nodeQuery := "A2"
-	nodeIP, err := demoRing.GetNode(nodeQuery)
-	if err == nil {
-        fmt.Printf("Node %s found at : %s \n",nodeQuery,nodeIP)
-    } else{
-        fmt.Printf("Node %s not found\n",nodeQuery)
-    }
-
-    searchKey := "testing"
-    nodeHash, addr, err := demoRing.AllocateKey(searchKey)
-    if err == nil {
-		fmt.Printf("Key [%s] found at node %s with ip [%s] \n",searchKey, demoRing.RingNodeDataArray[nodeHash].ID,addr)
-	} else {
-		fmt.Printf("Node for key [%s] not found \n", searchKey )
-	}
 
     go node.Start()
     time.Sleep(time.Duration(WARMUP_DURATION) * time.Second)
