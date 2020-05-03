@@ -63,7 +63,7 @@ For better Sanity check, we created a Frontend Monitoring Tool using React, whic
 
 ```bash
 #please ensure you have npm installed
-cd fe-monitoring 
+cd ConHashRing
 npm install 
 npm run start 
 ```
