@@ -10,7 +10,7 @@ In the series, the main character, Naruto has a signature technique called Kage 
 
 Additionally, the replication technique in Naruto is not strongly consistent. Turns out, Masashi Kishimoto, (岸本 斉史) the author of Naruto, has taken extra effort to imbue realistic assumptions into this replication technique.  In [Chapter 315](https://naruto.fandom.com/wiki/Special_Training!!) of the manga series, Kakashi, Naruto's sensei, showed Naruto how knowledge transfer works amongst clones. Basically, knowledge amongst the clones of Naruto are synchronised only when a clone disappears -he knowledge of a clone is transferred to all other clones when it disappears. In other words, Naruto's clones are **Eventually Consistent**. By using this technique, Naruto was able to speed up his training and achieve mastery over extremely difficult techniques in record time by having all his clones do the training together. 
 
-Hence, BunshinDB is a fitting name for the system, given how we design our system to be Highly Available, Fault Tolerant and Eventually Consistent, using techniques described in [Amazon's Dynamo] (https://www.allthingsdistributed.com/2007/10/amazons_dynamo.html)
+Hence, BunshinDB is a fitting name for the system, given how we design our system to be Highly Available, Fault Tolerant and Eventually Consistent, using techniques described in [Amazon's Dynamo](https://www.allthingsdistributed.com/2007/10/amazons_dynamo.html).
 
 
 
@@ -57,6 +57,8 @@ go get github.com/golang/glog
 go get github.com/dgraph-io/badger/
 brew install hugo
 ```
+
+
 ### Monitoring Tools 
 
 For better Sanity check, we created a Frontend Monitoring Tool using React, which allows us to know the updated state of the Ring and status of all the Nodes, updated at the resolution of 1 second. 
@@ -71,6 +73,8 @@ npm run start
 Please see below for a gif demo of how the monitoring tool works. 
 
 ![ConHashGif](./pics_gifs/ConHashGif.gif)
+
+
 
 ### DEMO Shopping Site
 
