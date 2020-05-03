@@ -2,7 +2,9 @@
 ### System architecture
 #### Overview
 
-
+---
+![](pics_gifs/Overview_Architecture.png)
+---
 
 ### Run Instructions 
 
