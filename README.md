@@ -57,6 +57,23 @@ go get github.com/golang/glog
 go get github.com/dgraph-io/badger/
 brew install hugo
 ```
+
+
+#### Example Usage of Monitoring Tools 
+
+For better Sanity check, we created a Frontend Monitoring Tool using React, which allows us to know the updated state of the Ring and status of all the Nodes, updated at the resolution of 1 second. 
+
+```bash
+#please ensure you have npm installed
+cd fe-monitoring 
+npm install 
+npm run start 
+```
+
+Please see below for a gif demo of how the monitoring tool works. 
+
+![ConHashGif](/Users/lionellloh/go/src/BunshinDB/pics_gifs/ConHashGif.gif)
+
 ### DEMO Shopping Site
 
 Static shopping site without Bunshin set up
@@ -107,8 +124,6 @@ hugo server
 
 ```
 ![](pics_gifs/hugo.gif)
-
-
 
 
 
