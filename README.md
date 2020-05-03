@@ -15,6 +15,18 @@ System Components:
 5. Shopping Site -> Simple e-commerce web prototype
 6. Dashboard GUI -> Visual overlay on the ring structure and the nodes' liveness status
 
+### Dependencies 
+github.com/golang/glog
+github.com/dgraph-io/badger/
+https://gohugo.io/
+
+### Setting up pre requisites
+```cassandraql
+go get github.com/golang/glog
+go get github.com/dgraph-io/badger/
+brew install hugo
+```
+
 ### Run Instructions 
 
 Execution flow -> Stethoscope -> RingServer -> NodeServer(s) -> Client(s) -> FrontEnd
@@ -60,17 +72,15 @@ hugo server
 Note: The last argument, `shouldRegister` is either `"true"` or `"false"`. 
 Set it to false if we want to simulate a revival of the node.  
 
-### Dependencies 
-github.com/golang/glog
-github.com/dgraph-io/badger/
 
-### Setting up pre requisites
-```cassandraql
-go get github.com/golang/glog
-go get github.com/dgraph-io/badger/
-```
 
-#### Example Usage: 
+#### Example Usage of Shopping Site:
+After setting up hugo server, visit localhost:1313 on a web browser
+
+![](pics_gifs/shopping.gif)
+
+
+#### Example Usage(CLI): 
 To run a nodeServer
 ```cassandraq#
 go run cmd/nodeServer.go 8080 /tmp/badger8080 1
