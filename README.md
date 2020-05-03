@@ -75,7 +75,9 @@ Set it to false if we want to simulate a revival of the node.
 
 
 #### Example Usage of Shopping Site:
-After setting up hugo server, visit localhost:1313 on a web browser
+After setting up hugo server, visit localhost:1313 on a web browser.
+
+Shopping Cart data is stored in BunshinDB, easily save and update your shopping cart from any device.
 
 ![](pics_gifs/shopping1.gif)
 
