@@ -57,9 +57,7 @@ go get github.com/golang/glog
 go get github.com/dgraph-io/badger/
 brew install hugo
 ```
-
-
-#### Example Usage of Monitoring Tools 
+### Monitoring Tools 
 
 For better Sanity check, we created a Frontend Monitoring Tool using React, which allows us to know the updated state of the Ring and status of all the Nodes, updated at the resolution of 1 second. 
 
@@ -124,8 +122,6 @@ hugo server
 
 ```
 ![](pics_gifs/hugo.gif)
-
-
 
 #### Example Usage of Shopping Site:
 After setting up hugo server, visit localhost:1313 on a web browser.

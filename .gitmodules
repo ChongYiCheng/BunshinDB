@@ -1,0 +1,3 @@
+[submodule "ConHashRing"]
+	path = ConHashRing
+	url = https://github.com/lionellloh/ConHashRing-
