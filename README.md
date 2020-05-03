@@ -77,7 +77,7 @@ Set it to false if we want to simulate a revival of the node.
 #### Example Usage of Shopping Site:
 After setting up hugo server, visit localhost:1313 on a web browser
 
-![](pics_gifs/shopping.gif)
+![](pics_gifs/shopping1.gif)
 
 
 #### Example Usage(CLI): 
