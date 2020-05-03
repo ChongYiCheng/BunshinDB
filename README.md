@@ -42,6 +42,11 @@ go get github.com/golang/glog
 go get github.com/dgraph-io/badger/
 brew install hugo
 ```
+### DEMO Shopping Site
+
+Static shopping site without Bunshin set up
+
+https://chongyicheng.github.io/BunshinDB/
 
 ### Run Instructions 
 
