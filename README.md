@@ -6,6 +6,14 @@
 ![](pics_gifs/Overview_Architecture.png)
 ---
 
+System Components:
+1. Stethoscope Server -> Checks liveness of Ring Server and Node Servers
+2. Ring Server -> Assign Node Servers different positions in the ring and ensures each node is aware of the hash ring
+3. Node Servers -> Coordinates read and write requests based on their position on the ring and the hash of the key
+4. Client -> Serves as the backend for the shopping website relays get and put requests from the users
+5. Shopping Site -> Simple e-commerce web prototype
+6. Dashboard GUI -> Visual overlay on the ring structure and the nodes' liveness status
+
 ### Run Instructions 
 
 ```cassandraql
