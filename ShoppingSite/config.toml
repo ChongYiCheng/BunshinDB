@@ -1,4 +1,3 @@
 baseURL = "https://chongyicheng.github.io/50.041-DistSysProject-BunshinDB/"
-publishDir = "docs"
 languageCode = "en-us"
 title = "CCB"
