@@ -3,15 +3,47 @@
   xmlns:xhtml="http://www.w3.org/1999/xhtml">
   
   <url>
-    <loc>https://chongyicheng.github.io/50.041-DistSysProject-BunshinDB/categories/</loc>
+    <loc>localhost:1313/products/bubbletea/</loc>
   </url>
   
   <url>
-    <loc>https://chongyicheng.github.io/50.041-DistSysProject-BunshinDB/</loc>
+    <loc>localhost:1313/products/lakewood/</loc>
   </url>
   
   <url>
-    <loc>https://chongyicheng.github.io/50.041-DistSysProject-BunshinDB/tags/</loc>
+    <loc>localhost:1313/products/mcspicy/</loc>
+  </url>
+  
+  <url>
+    <loc>localhost:1313/products/pearldrums/</loc>
+  </url>
+  
+  <url>
+    <loc>localhost:1313/products/stradivarius/</loc>
+  </url>
+  
+  <url>
+    <loc>localhost:1313/products/toiletroll/</loc>
+  </url>
+  
+  <url>
+    <loc>localhost:1313/products/viola/</loc>
+  </url>
+  
+  <url>
+    <loc>localhost:1313/categories/</loc>
+  </url>
+  
+  <url>
+    <loc>localhost:1313/</loc>
+  </url>
+  
+  <url>
+    <loc>localhost:1313/products/</loc>
+  </url>
+  
+  <url>
+    <loc>localhost:1313/tags/</loc>
   </url>
   
 </urlset>
