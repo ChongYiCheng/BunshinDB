@@ -1,6 +1,21 @@
-# 50.041 DistSysProject BunshinDB
-![](pics_gifs/logo.jpg)
+
+
+![bunshin_logo_cropped](/Users/lionellloh/go/src/50.041-DistSysProject-BunshinDB/pics_gifs/bunshin_logo_cropped.png)
+
+## Why "Bunshin"?
+
+Bunshin (分身) is Japanese term that means "clone" or "replication". It was a word popularised by [Naruto](https://en.wikipedia.org/wiki/Naruto) (ナルト) , one of our favourite Anime Series. (If you haven't watched it, you really should) 
+
+In the series, the main character, Naruto has a signature technique called Kage Bunshin No Jutsu ((影分身の術), which translates to Shadow Replication Technique. By using this technique widely, Naruto was often able to devise interesting battle strategies and survive enemy attacks, triumphing in almost every battle he gets into. In other words, it is his ability to create many clones at once that allows Naruto to be **Highly Available** and  **Fault Tolerant**. 
+
+Additionally, the replication technique in Naruto is not strongly consistent. Turns out, Masashi Kishimoto, (岸本 斉史) the author of Naruto, has taken extra effort to imbue realistic assumptions into this replication technique.  In [Chapter 315](https://naruto.fandom.com/wiki/Special_Training!!) of the manga series, Kakashi, Naruto's sensei, showed Naruto how knowledge transfer works amongst clones. Basically, knowledge amongst the clones of Naruto are synchronised only when a clone disappears -he knowledge of a clone is transferred to all other clones when it disappears. In other words, Naruto's clones are **Eventually Consistent**. By using this technique, Naruto was able to speed up his training and achieve mastery over extremely difficult techniques in record time by having all his clones do the training together. 
+
+Hence, BunshinDB is a fitting name for the system, given how we design our system to be Highly Available, Fault Tolerant and Eventually Consistent, using techniques described in [Amazon's Dynamo] (https://www.allthingsdistributed.com/2007/10/amazons_dynamo.html)
+
+
+
 ### System architecture
+
 #### Overview
 
 <p align="center">
