@@ -1,0 +1,16 @@
+<div class="product">
+  <h2 class="product__name">{{ .name }}</h2>
+  <img class="product__image" src="{{ .image }}" alt="">
+  <p class="product__description">{{ .description }}</p>
+  <div class="product__button-container">
+    <div class="product__price">${{ .price }}</div>
+    <!-- TODO: Update the Shopping Cart-->
+    <button
+      class="shop-item-button buy-button"
+      data-item-name="{{ .name }}"
+      data-item-price="{{ .price }}"
+      data-item-description="{{ .description }}">
+      Add to cart
+    </button>
+  </div>
+</div>
