@@ -2,74 +2,74 @@
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
   <channel>
     <title>CCB</title>
-    <link>localhost:1313/</link>
+    <link>https://chongyicheng.github.io/BunshinDB/</link>
     <description>Recent content on CCB</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en-us</language>
     
-	<atom:link href="localhost:1313/index.xml" rel="self" type="application/rss+xml" />
+	<atom:link href="https://chongyicheng.github.io/BunshinDB/index.xml" rel="self" type="application/rss+xml" />
     
     
     <item>
       <title></title>
-      <link>localhost:1313/products/bubbletea/</link>
+      <link>https://chongyicheng.github.io/BunshinDB/products/bubbletea/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       
-      <guid>localhost:1313/products/bubbletea/</guid>
+      <guid>https://chongyicheng.github.io/BunshinDB/products/bubbletea/</guid>
       <description></description>
     </item>
     
     <item>
       <title></title>
-      <link>localhost:1313/products/lakewood/</link>
+      <link>https://chongyicheng.github.io/BunshinDB/products/lakewood/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       
-      <guid>localhost:1313/products/lakewood/</guid>
+      <guid>https://chongyicheng.github.io/BunshinDB/products/lakewood/</guid>
       <description></description>
     </item>
     
     <item>
       <title></title>
-      <link>localhost:1313/products/mcspicy/</link>
+      <link>https://chongyicheng.github.io/BunshinDB/products/mcspicy/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       
-      <guid>localhost:1313/products/mcspicy/</guid>
+      <guid>https://chongyicheng.github.io/BunshinDB/products/mcspicy/</guid>
       <description></description>
     </item>
     
     <item>
       <title></title>
-      <link>localhost:1313/products/pearldrums/</link>
+      <link>https://chongyicheng.github.io/BunshinDB/products/pearldrums/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       
-      <guid>localhost:1313/products/pearldrums/</guid>
+      <guid>https://chongyicheng.github.io/BunshinDB/products/pearldrums/</guid>
       <description></description>
     </item>
     
     <item>
       <title></title>
-      <link>localhost:1313/products/stradivarius/</link>
+      <link>https://chongyicheng.github.io/BunshinDB/products/stradivarius/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       
-      <guid>localhost:1313/products/stradivarius/</guid>
+      <guid>https://chongyicheng.github.io/BunshinDB/products/stradivarius/</guid>
       <description></description>
     </item>
     
     <item>
       <title></title>
-      <link>localhost:1313/products/toiletroll/</link>
+      <link>https://chongyicheng.github.io/BunshinDB/products/toiletroll/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       
-      <guid>localhost:1313/products/toiletroll/</guid>
+      <guid>https://chongyicheng.github.io/BunshinDB/products/toiletroll/</guid>
       <description></description>
     </item>
     
     <item>
       <title></title>
-      <link>localhost:1313/products/viola/</link>
+      <link>https://chongyicheng.github.io/BunshinDB/products/viola/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       
-      <guid>localhost:1313/products/viola/</guid>
+      <guid>https://chongyicheng.github.io/BunshinDB/products/viola/</guid>
       <description></description>
     </item>
     
