@@ -18,7 +18,7 @@ Set it to false if we want to simulate a revival of the node.
 github.com/golang/glog
 github.com/dgraph-io/badger/
 
-### Setting up 
+### Setting up pre requisites
 ```cassandraql
 go get github.com/golang/glog
 go get github.com/dgraph-io/badger/
