@@ -1,6 +1,6 @@
 
 
-![bunshin_logo_cropped](/Users/lionellloh/go/src/50.041-DistSysProject-BunshinDB/pics_gifs/bunshin_logo_cropped.png)
+![bunshin_logo_cropped](./pics_gifs/bunshin_logo_cropped.png)
 
 ## Why "Bunshin"?
 
@@ -72,7 +72,7 @@ npm run start
 
 Please see below for a gif demo of how the monitoring tool works. 
 
-![ConHashGif](/Users/lionellloh/go/src/BunshinDB/pics_gifs/ConHashGif.gif)
+![ConHashGif](./pics_gifs/ConHashGif.gif)
 
 ### DEMO Shopping Site
 
