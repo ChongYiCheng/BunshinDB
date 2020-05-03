@@ -27,26 +27,35 @@ go run cmd/stethoServer.go
 #To run a ringserver
 go run cmd/ringServer.go 
 
+```
 ![](pics_gifs/stethoring.gif)
+
+```cassandraql
 
 #To run a nodeServer
 go run cmd/nodeServer.go <portNumber> <pathToDbFiles> <nodeId> <shouldRegister true|false> 
 
+```
 ![](pics_gifs/nodes.gif)
+
+```cassandraql
 
 #To run a client 
 go run cmd/client.go <portNumber> 
 
+```
+
 ![](pics_gifs/client.gif)
+
+```cassandraql
 
 #To run frontend
 
 cd ShoppingSite
 hugo server
 
-![](pics_gifs/hugo.gif)
-
 ```
+![](pics_gifs/hugo.gif)
 
 Note: The last argument, `shouldRegister` is either `"true"` or `"false"`. 
 Set it to false if we want to simulate a revival of the node.  
