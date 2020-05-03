@@ -49,6 +49,9 @@ go run cmd/ringServer.go
 #To run a nodeServer
 go run cmd/nodeServer.go <portNumber> <pathToDbFiles> <nodeId> <shouldRegister true|false> 
 
+Note: The last argument, `shouldRegister` is either `"true"` or `"false"`. 
+Set it to false if we want to simulate a revival of the node.  
+
 ```
 ![](pics_gifs/nodes.gif)
 
@@ -71,8 +74,7 @@ hugo server
 ```
 ![](pics_gifs/hugo.gif)
 
-Note: The last argument, `shouldRegister` is either `"true"` or `"false"`. 
-Set it to false if we want to simulate a revival of the node.  
+
 
 
 
