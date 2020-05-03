@@ -16,9 +16,11 @@ System Components:
 6. Dashboard GUI -> Visual overlay on the ring structure and the nodes' liveness status
 
 ### Dependencies 
-github.com/golang/glog
-github.com/dgraph-io/badger/
-https://gohugo.io/
+```cassandraql
+Glog -> github.com/golang/glog
+Badger -> github.com/dgraph-io/badger/
+Hugo -> https://gohugo.io/
+```
 
 ### Setting up pre requisites
 ```cassandraql
