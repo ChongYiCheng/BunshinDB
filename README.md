@@ -15,6 +15,20 @@ System Components:
 5. Shopping Site -> Simple e-commerce web prototype
 6. Dashboard GUI -> Visual overlay on the ring structure and the nodes' liveness status
 
+### Features
+* High availability of Reads and Writes
+  * Even load distribution with Consistent Hashing
+* Fast and consistent performance
+  * Sloppy Quorum allows reads and writes operations to be completed without intermittent failures or congestion affecting the operations
+* Fault tolerance
+  * Nodes have a set of replicas based on their positions on the ring
+  * In the case of temporary failures, data is stored temporarily by the replica and the replicas can serve the requests for the primary
+  * In the case of permanent failures, the failed node is removed from the ring and at most K/N keys are reshuffled amongst the remaining N nodes.
+* Horizontal scalability
+  * Distributed Key Value database across different computers
+* Eventually consistent
+  * Data versioning with vector clocks ensures that items across different nodes will be up to date eventually
+
 ### Dependencies 
 ```cassandraql
 Glog -> github.com/golang/glog
