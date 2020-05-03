@@ -27,11 +27,24 @@ go run cmd/stethoServer.go
 #To run a ringserver
 go run cmd/ringServer.go 
 
+![](pics_gifs/stethoring.gif)
+
 #To run a nodeServer
 go run cmd/nodeServer.go <portNumber> <pathToDbFiles> <nodeId> <shouldRegister true|false> 
 
+![](pics_gifs/nodes.gif)
+
 #To run a client 
 go run cmd/client.go <portNumber> 
+
+![](pics_gifs/client.gif)
+
+#To run frontend
+
+cd ShoppingSite
+hugo server
+
+![](pics_gifs/hugo.gif)
 
 ```
 
