@@ -17,7 +17,16 @@ System Components:
 
 ### Run Instructions 
 
+Execution flow -> Stethoscope -> RingServer -> NodeServer(s) -> Client(s) -> FrontEnd
+
 ```cassandraql
+
+#To run a stethoscope
+go run cmd/stethoServer.go 
+
+#To run a ringserver
+go run cmd/ringServer.go 
+
 #To run a nodeServer
 go run cmd/nodeServer.go <portNumber> <pathToDbFiles> <nodeId> <shouldRegister true|false> 
 
