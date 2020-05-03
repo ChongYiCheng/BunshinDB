@@ -46,7 +46,7 @@ func (ringServer *RingServer) HttpServerStart(){
 	http.HandleFunc("/faint-node", ringServer.FaintNodeHandler)
 	http.HandleFunc("/remove-node", ringServer.RemoveNodeHandler)
 	http.HandleFunc("/revive-node", ringServer.ReviveNodeHandler)
-	http.HandleFunc("/get-node", ringServer.GetNodeHandler)
+	//http.HandleFunc("/get-node", ringServer.GetNodeHandler)
 	http.HandleFunc("/hb", ringServer.HeartBeatHandler)
 	http.HandleFunc("/get-ring", ringServer.GetRingHandler)
 	log.Print(fmt.Sprintf("[RingServer] Started and Listening at %s:%s.", ringServer.ip, ringServer.port))
