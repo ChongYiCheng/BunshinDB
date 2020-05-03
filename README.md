@@ -3,9 +3,9 @@
 ### System architecture
 #### Overview
 
----
-![](pics_gifs/Overview_Architecture.png)
----
+<p align="center">
+  <img width="460" height="300" src="pics_gifs/Overview_Architecture.png">
+</p>
 
 System Components:
 1. Stethoscope Server -> Checks liveness of Ring Server and Node Servers
