@@ -1,4 +1,5 @@
 # 50.041 DistSysProject BunshinDB
+![](pics_gifs/logo.jpg)
 ### System architecture
 #### Overview
 
